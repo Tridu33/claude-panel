@@ -1,1 +1,164 @@
+# Claude Panel .gitignore
+
+# ====================
+# Python 相关
+# ====================
+# Byte-compiled / optimized / distributed files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ====================
+# Vue/Node.js 相关
+# ====================
+# Dependencies
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+
+# Testing
+frontend/coverage
+
+# Production
+frontend/dist
+frontend/build
+
+# Misc
+frontend/.DS_Store
+frontend/.npm
+frontend/.npm-debug.log*
+frontend/.yarn-debug.log*
+frontend/.yarn-error.log*
+
+# Editor directories and files
+frontend/.vscode/*
+!frontend/.vscode/settings.json
+frontend/.idea
+frontend/*.suo
+frontend/*.ntvs*
+frontend/*.njsproj
+frontend/*.sln
+frontend *.sw?
+
+# ====================
+# Vibe Coding AI 工具
+# ====================
+# Claude
+.claude/
+.claude.json
+.claude.json.backup
+
+# Qoder
+.qoder/
+.qoder.json
+.qoder.json.backup
+
+# Cursor
+.cursor/
+.cursor.json
+.cursorrules
+
+# GitHub Copilot
+.copilot/
+
+# WindSurf
+.windsurf/
+
+# Other AI tools
+.ai-code-tracker.json
+.trae/
+.roo/
+
+# ====================
+# 系统文件
+# ====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# ====================
+# 项目特定
+# ====================
+# 环境变量文件（包含敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 不忽略示例文件
+!.env.example
+
+# 数据库
+*.sqlite
+*.sqlite3
+*.db
 .ai-code-tracker.json

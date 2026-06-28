@@ -316,7 +316,7 @@ export default {
     // 终端日志相关
     const sessionLogs = ref('')
     const logLines = ref(60)
-    const autoRefresh = ref(false)
+    const autoRefresh = ref(true)  // 默认开启自动刷新
     const loadingLogs = ref(false)
     const terminalContent = ref(null)
     let autoRefreshTimer = null
@@ -763,6 +763,13 @@ export default {
       loadTmuxSessions()
       // 每 5 秒刷新一次会话列表
       refreshTimer = setInterval(loadTmuxSessions, 5000)
+      
+      // 如果自动刷新默认开启，启动日志自动刷新
+      if (autoRefresh.value) {
+        autoRefreshTimer = setInterval(() => {
+          loadSessionLogs()
+        }, 3000)
+      }
     })
 
     onUnmounted(() => {

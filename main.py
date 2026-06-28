@@ -3,7 +3,7 @@ Claude 键盘控制面板 - FastAPI 服务器
 支持按键事件、WebSocket 实时通信、LED 状态管理
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
@@ -14,8 +14,18 @@ from typing import Optional
 from datetime import datetime
 import uvicorn
 from ssh_manager import ssh_manager
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 app = FastAPI(title="Claude控制面板", version="1.0.0")
+
+# 读取环境变量
+PANEL_ACCOUNT = os.getenv("PANEL_ACCOUNT", "")
+PANEL_SECERT = os.getenv("PANEL_SECERT", "")
+
+print(f"[启动] 面板配置已加载")
 
 app.add_middleware(
     CORSMiddleware,
