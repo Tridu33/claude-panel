@@ -420,10 +420,10 @@ async def get_state():
 async def press_key(key_name: str):
     """
     模拟按键触发
-    key_name: mic | yes | no | up | down | enter
+    key_name: mic | yes | no | up | down | esc | enter
     """
     key_name = key_name.lower()
-    if key_name not in ("mic", "yes", "no", "up", "down", "enter"):
+    if key_name not in ("mic", "yes", "no", "up", "down", "esc", "enter"):
         return JSONResponse({"error": "未知按键"}, status_code=400)
 
     actions = {
@@ -432,6 +432,7 @@ async def press_key(key_name: str):
         "no":    ("NO",     "拒绝操作"),
         "up":    ("上键",   "向上导航"),
         "down":  ("下键",   "向下导航"),
+        "esc":   ("Esc",    "退出/取消"),
         "enter": ("ENTER",  "提交/执行"),
     }
     label, detail = actions[key_name]
@@ -638,7 +639,12 @@ async def send_tmux_command(body: dict):
     session = body.get("session", "")
     command = body.get("command", "")
     
+    print(f"[Backend] 收到发送命令请求")
+    print(f"[Backend] 会话: {session}")
+    print(f"[Backend] 命令: {command}")
+    
     if not session or not command:
+        print(f"[Backend] 错误: session 或 command 为空")
         return JSONResponse(
             {"error": "session 和 command 为必填项"},
             status_code=400
@@ -646,25 +652,43 @@ async def send_tmux_command(body: dict):
     
     try:
         # 使用 send-keys 发送命令
-        subprocess.run(
+        print(f"[Backend] 执行: tmux send-keys -t {session} {command}")
+        result1 = subprocess.run(
             ['tmux', 'send-keys', '-t', session, command],
             capture_output=True,
+            text=True,
             timeout=5
         )
+        print(f"[Backend] send-keys 返回码: {result1.returncode}")
+        if result1.stdout:
+            print(f"[Backend] stdout: {result1.stdout}")
+        if result1.stderr:
+            print(f"[Backend] stderr: {result1.stderr}")
         
         # 发送 Enter 键
-        subprocess.run(
+        print(f"[Backend] 执行: tmux send-keys -t {session} Enter")
+        result2 = subprocess.run(
             ['tmux', 'send-keys', '-t', session, 'Enter'],
             capture_output=True,
+            text=True,
             timeout=5
         )
+        print(f"[Backend] Enter 返回码: {result2.returncode}")
+        if result2.stdout:
+            print(f"[Backend] stdout: {result2.stdout}")
+        if result2.stderr:
+            print(f"[Backend] stderr: {result2.stderr}")
         
+        print(f"[Backend] 命令发送成功")
         return {
             "success": True,
             "message": f"命令已发送到会话 {session}"
         }
         
     except Exception as e:
+        print(f"[Backend] 异常: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             {"error": f"发送命令失败: {str(e)}"},
             status_code=500

@@ -1,12 +1,6 @@
 <template>
   <div class="page">
     <header class="page-header">
-      <div class="header-left">
-        <span class="logo">⌨️</span>
-        <div>
-          <h1>Claude 控制面板</h1>
-        </div>
-      </div>
       <div class="header-right">
         <span :class="['badge', wsConnected ? 'badge-on' : 'badge-off']">
           WS {{ wsConnected ? '连接' : '断开' }}
@@ -74,7 +68,7 @@
                 <polyline points="23 4 23 10 17 10"/>
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
               </svg>
-              {{ autoRefresh ? '5s' : '自动' }}
+              {{ autoRefresh ? '3s' : '自动' }}
             </button>
             <button @click="loadSessionLogs" :disabled="loadingLogs" class="btn-refresh" title="手动刷新">
               <svg :class="{ 'spinning': loadingLogs }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -139,6 +133,9 @@
             </div>
           </div>
 
+          <!-- 虚拟键盘 -->
+          <VirtualKeyboard v-model="commandInput" @send="sendCommand" />
+
           <!-- 事件日志 -->
           <div class="log-box">
             <div class="log-title">
@@ -158,59 +155,70 @@
         <!-- 右侧：按键区 + 拨杆 -->
         <div class="sidebar">
           <div class="key-column">
-            <!-- 麦克风键 -->
-            <button class="key-btn key-compact" @click="pressKey('mic')" title="语音输入">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                   stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="2" width="6" height="12" rx="3"/>
-                <path d="M5 10a7 7 0 0 0 14 0"/>
-                <line x1="12" y1="19" x2="12" y2="22"/>
-                <line x1="8" y1="22" x2="16" y2="22"/>
-              </svg>
-            </button>
+            <!-- 第一列：语音键、Yes、No、自动拨杆 -->
+            <div class="key-column-inner">
+              <!-- 麦克风键 -->
+              <button class="key-btn key-compact" @click="pressKey('mic')" title="语音输入">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="2" width="6" height="12" rx="3"/>
+                  <path d="M5 10a7 7 0 0 0 14 0"/>
+                  <line x1="12" y1="19" x2="12" y2="22"/>
+                  <line x1="8" y1="22" x2="16" y2="22"/>
+                </svg>
+              </button>
 
-            <!-- YES 键 -->
-            <button class="key-btn key-compact key-yes" @click="pressKey('yes')" title="确认">
-              <span class="key-label-small">YES</span>
-            </button>
+              <!-- YES 键 -->
+              <button class="key-btn key-compact key-yes" @click="pressKey('yes')" title="确认">
+                <span class="key-label-small">YES</span>
+              </button>
 
-            <!-- NO 键 -->
-            <button class="key-btn key-compact key-no" @click="pressKey('no')" title="拒绝">
-              <span class="key-label-small">NO</span>
-            </button>
+              <!-- NO 键 -->
+              <button class="key-btn key-compact key-no" @click="pressKey('no')" title="拒绝">
+                <span class="key-label-small">NO</span>
+              </button>
 
-            <!-- Enter 键 -->
-            <button class="key-btn key-compact" @click="pressKey('enter')" title="提交/执行">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-                   stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 10 4 15 9 20"/>
-                <path d="M20 4v7a4 4 0 0 1-4 4H4"/>
-              </svg>
-            </button>
+              <!-- 自动批准拨杆 -->
+              <div class="toggle-wrap-compact">
+                <div class="toggle-label-small">自动</div>
+                <label class="toggle-switch-compact" title="自动批准拨杆">
+                  <input type="checkbox" v-model="autoApprove" @change="toggleAutoApprove" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
 
-            <!-- 上键 -->
-            <button class="key-btn key-compact key-arrow-compact" @click="pressKey('up')" title="上">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                   stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="18 15 12 9 6 15"/>
-              </svg>
-            </button>
+            <!-- 第二列：Esc、上键、下键、Enter -->
+            <div class="key-column-inner">
+              <!-- Esc 键 -->
+              <button class="key-btn key-compact key-esc" @click="pressKey('esc')" title="退出">
+                <span class="key-label-small key-esc-label">esc</span>
+              </button>
 
-            <!-- 下键 -->
-            <button class="key-btn key-compact key-arrow-compact" @click="pressKey('down')" title="下">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                   stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
+              <!-- 上键 -->
+              <button class="key-btn key-compact key-arrow-compact" @click="pressKey('up')" title="上">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="18 15 12 9 6 15"/>
+                </svg>
+              </button>
 
-            <!-- 自动批准拨杆 -->
-            <div class="toggle-wrap-compact">
-              <div class="toggle-label-small">自动</div>
-              <label class="toggle-switch-compact" title="自动批准拨杆">
-                <input type="checkbox" v-model="autoApprove" @change="toggleAutoApprove" />
-                <span class="slider"></span>
-              </label>
+              <!-- 下键 -->
+              <button class="key-btn key-compact key-arrow-compact" @click="pressKey('down')" title="下">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+
+              <!-- Enter 键 -->
+              <button class="key-btn key-compact" @click="pressKey('enter')" title="提交/执行">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 10 4 15 9 20"/>
+                  <path d="M20 4v7a4 4 0 0 1-4 4H4"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -288,9 +296,13 @@
 <script>
 // 这里保持原有script内容不变，仅修改template
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import VirtualKeyboard from '../components/VirtualKeyboard.vue'
 
 export default {
   name: 'ControlPanel',
+  components: {
+    VirtualKeyboard
+  },
   setup() {
     const wsConnected = ref(false)
     const currentMode = ref('')
@@ -303,7 +315,7 @@ export default {
     
     // 终端日志相关
     const sessionLogs = ref('')
-    const logLines = ref(200)
+    const logLines = ref(60)
     const autoRefresh = ref(false)
     const loadingLogs = ref(false)
     const terminalContent = ref(null)
@@ -312,6 +324,84 @@ export default {
     // 命令输入相关
     const commandInput = ref('')
     const sendingCommand = ref(false)
+    
+    // 虚拟键盘相关
+    const shiftActive = ref(false)
+    const ctrlActive = ref(false)
+    const altActive = ref(false)
+    const capsActive = ref(false)
+    
+    // 虚拟键盘输入处理
+    const handleVirtualKey = (key) => {
+      // 处理特殊键
+      if (key === 'Shift') {
+        shiftActive.value = !shiftActive.value
+        return
+      }
+      if (key === 'Ctrl') {
+        ctrlActive.value = !ctrlActive.value
+        return
+      }
+      if (key === 'Alt') {
+        altActive.value = !altActive.value
+        return
+      }
+      if (key === 'Caps') {
+        capsActive.value = !capsActive.value
+        return
+      }
+      
+      // 处理 Backspace
+      if (key === 'Backspace') {
+        commandInput.value = commandInput.value.slice(0, -1)
+        return
+      }
+      
+      // 处理 Enter
+      if (key === 'Enter') {
+        commandInput.value += '\n'
+        return
+      }
+      
+      // 处理 Space
+      if (key === 'Space') {
+        commandInput.value += ' '
+        return
+      }
+      
+      // 处理 Tab
+      if (key === 'Tab') {
+        commandInput.value += '  '
+        return
+      }
+      
+      // 处理 Del
+      if (key === 'Del') {
+        // Del 键通常删除光标后的字符，这里简化为不做操作
+        return
+      }
+      
+      // 普通字符输入
+      let char = key
+      
+      // 如果 Shift 或 Caps 激活，转换为大写
+      if (shiftActive.value || capsActive.value) {
+        if (char.length === 1 && char.match(/[a-z]/)) {
+          char = char.toUpperCase()
+        }
+        // Shift 点击后自动关闭
+        if (shiftActive.value) {
+          shiftActive.value = false
+        }
+      }
+      
+      // 添加修饰键前缀
+      let prefix = ''
+      if (ctrlActive.value) prefix += 'Ctrl+'
+      if (altActive.value) prefix += 'Alt+'
+      
+      commandInput.value += prefix + char
+    }
     
     // 删除会话相关
     const showDeleteDialog = ref(false)
@@ -368,7 +458,10 @@ export default {
           autoApprove.value = data.auto_approve
           ledStatus.value = data.led_status
           lcdMessage.value = data.lcd_message
-          currentMode.value = data.current_mode.toString()
+          // 只在 current_mode 是 tmux 会话名称时才更新
+          if (data.current_mode && !['0', '1', '2'].includes(data.current_mode.toString())) {
+            currentMode.value = data.current_mode.toString()
+          }
           if (data.logs) {
             logs.value = data.logs
           }
@@ -435,7 +528,7 @@ export default {
         // 开启自动刷新
         autoRefreshTimer = setInterval(() => {
           loadSessionLogs()
-        }, 5000)
+        }, 3000)
       } else {
         // 关闭自动刷新
         if (autoRefreshTimer) {
@@ -447,34 +540,59 @@ export default {
 
     // 发送命令到 tmux 会话
     const sendCommand = async () => {
-      if (!currentSessionName.value || !commandInput.value.trim()) return
+      console.log('[ControlPanel] sendCommand 被调用')
+      console.log('[ControlPanel] 当前选中的会话:', currentSessionName.value)
+      console.log('[ControlPanel] 输入框内容:', commandInput.value)
+      
+      if (!currentSessionName.value) {
+        console.warn('[ControlPanel] 未选择会话')
+        alert('请先选择一个 tmux 会话')
+        return
+      }
+      
+      // 如果输入框为空，不发送
+      const command = commandInput.value
+      if (!command || !command.trim()) {
+        console.warn('[ControlPanel] 命令为空')
+        return
+      }
+      
+      console.log('[ControlPanel] 准备发送命令:', command)
       
       sendingCommand.value = true
       try {
+        console.log('[ControlPanel] 发送 POST 请求到 /api/tmux/send-command')
+        
         const response = await fetch('/api/tmux/send-command', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             session: currentSessionName.value,
-            command: commandInput.value
+            command: command  // 直接发送输入框内容，包含数字和回车
           })
         })
         
+        console.log('[ControlPanel] 收到响应，状态:', response.status)
+        
         const data = await response.json()
+        console.log('[ControlPanel] 响应数据:', data)
         
         if (data.success) {
+          console.log('[ControlPanel] 命令发送成功')
           // 清空输入框
           commandInput.value = ''
           // 立即刷新日志
           await loadSessionLogs()
         } else {
+          console.error('[ControlPanel] 命令发送失败:', data.error)
           alert('发送命令失败: ' + (data.error || '未知错误'))
         }
       } catch (error) {
-        console.error('发送命令失败:', error)
+        console.error('[ControlPanel] 请求异常:', error)
         alert('发送命令失败: ' + error.message)
       } finally {
         sendingCommand.value = false
+        console.log('[ControlPanel] sendCommand 执行完毕')
       }
     }
 
@@ -678,6 +796,11 @@ export default {
       terminalContent,
       commandInput,
       sendingCommand,
+      shiftActive,
+      ctrlActive,
+      altActive,
+      capsActive,
+      handleVirtualKey,
       showDeleteDialog,
       deletingSession,
       showDialog,
@@ -1095,6 +1218,182 @@ export default {
   transform: none;
 }
 
+/* 虚拟键盘 */
+.virtual-keyboard {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+}
+
+.keyboard-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+  justify-content: center;
+}
+
+.keyboard-row:last-child {
+  margin-bottom: 0;
+}
+
+.key {
+  flex: 1;
+  max-width: 60px;
+  padding: 0.75rem 0.5rem;
+  background: linear-gradient(145deg, #ffffff 0%, #f3f4f6 100%);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.key:hover {
+  background: linear-gradient(145deg, #f9fafb 0%, #e5e7eb 100%);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.key:active {
+  transform: translateY(0);
+  background: linear-gradient(145deg, #e5e7eb 0%, #d1d5db 100%);
+}
+
+/* 数字键 - 橙色渐变 */
+.key-number {
+  background: linear-gradient(145deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.key-number:hover {
+  background: linear-gradient(145deg, #fde68a 0%, #fcd34d 100%);
+}
+
+/* 字母键 - 蓝紫渐变 */
+.key-letter {
+  background: linear-gradient(145deg, #dbeafe 0%, #bfdbfe 100%);
+  color: #1e40af;
+  border-color: rgba(147, 197, 253, 0.3);
+}
+
+.key-letter:hover {
+  background: linear-gradient(145deg, #bfdbfe 0%, #93c5fd 100%);
+}
+
+/* 符号键 - 粉色渐变 */
+.key-symbol {
+  background: linear-gradient(145deg, #fce7f3 0%, #fbcfe8 100%);
+  color: #9d174d;
+  border-color: rgba(251, 207, 232, 0.3);
+}
+
+.key-symbol:hover {
+  background: linear-gradient(145deg, #fbcfe8 0%, #f9a8d4 100%);
+}
+
+/* 功能键 - 青绿渐变 */
+.key-function {
+  background: linear-gradient(145deg, #d1fae5 0%, #a7f3d0 100%);
+  color: #065f46;
+  border-color: rgba(167, 243, 208, 0.3);
+}
+
+.key-function:hover {
+  background: linear-gradient(145deg, #a7f3d0 0%, #6ee7b7 100%);
+}
+
+.key-special {
+  background: linear-gradient(145deg, #fef3c7 0%, #fde68a 100%);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #92400e;
+}
+
+.key-shift {
+  background: linear-gradient(145deg, #fef3c7 0%, #fde68a 100%);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #92400e;
+}
+
+.key-shift:hover {
+  background: linear-gradient(145deg, #fde68a 0%, #fcd34d 100%);
+}
+
+.key-modifier {
+  background: linear-gradient(145deg, #e0e7ff 0%, #c7d2fe 100%);
+  border-color: rgba(199, 210, 254, 0.3);
+  color: #3730a3;
+  font-size: 0.8rem;
+}
+
+.key-caps {
+  background: linear-gradient(145deg, #e0e7ff 0%, #c7d2fe 100%);
+  border-color: rgba(199, 210, 254, 0.3);
+  color: #3730a3;
+}
+
+.key-ctrl {
+  background: linear-gradient(145deg, #e0e7ff 0%, #c7d2fe 100%);
+  border-color: rgba(199, 210, 254, 0.3);
+  color: #3730a3;
+}
+
+.key-alt {
+  background: linear-gradient(145deg, #e0e7ff 0%, #c7d2fe 100%);
+  border-color: rgba(199, 210, 254, 0.3);
+  color: #3730a3;
+}
+
+.key-active {
+  background: linear-gradient(145deg, #10b981 0%, #059669 100%) !important;
+  border-color: rgba(16, 185, 129, 0.5) !important;
+  color: white !important;
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.key-wide {
+  max-width: 100px;
+  flex: 1.5;
+}
+
+.key-space {
+  flex: 4;
+  max-width: none;
+  background: linear-gradient(145deg, #f3f4f6 0%, #e5e7eb 100%);
+}
+
+.key-space:hover {
+  background: linear-gradient(145deg, #e5e7eb 0%, #d1d5db 100%);
+}
+
+.key-tab {
+  max-width: 80px;
+  flex: 1.5;
+}
+
+.key-enter {
+  max-width: 100px;
+  flex: 1.5;
+  background: linear-gradient(145deg, #10b981 0%, #059669 100%);
+  color: white;
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.key-enter:hover {
+  background: linear-gradient(145deg, #059669 0%, #047857 100%);
+  box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4);
+}
+
 /* 日志框 */
 .log-box {
   background: white;
@@ -1159,6 +1458,12 @@ export default {
 }
 
 .key-column {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.key-column-inner {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -1166,7 +1471,7 @@ export default {
 
 /* 紧凑按键 */
 .key-compact {
-  padding: 0.75rem !important;
+  padding: 0.5rem !important;
   min-height: auto !important;
   display: flex;
   align-items: center;
@@ -1174,18 +1479,35 @@ export default {
 }
 
 .key-compact svg {
-  width: 24px;
-  height: 24px;
+  width: 12px;
+  height: 12px;
 }
 
 .key-label-small {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
 .key-arrow-compact svg {
-  width: 20px;
-  height: 20px;
+  width: 12px;
+  height: 12px;
+}
+
+.key-esc {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.key-esc:hover {
+  background: linear-gradient(135deg, #fde68a 0%, #fcd34d 100%);
+}
+
+.key-esc-label {
+  background: none;
+  color: #92400e;
+  padding: 0;
+  font-weight: 700;
 }
 
 /* 紧凑拨杆 */
@@ -1521,7 +1843,9 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  width: 70px;
+  height: 70px;
+  padding: 0.5rem;
   background: white;
   border: 2px solid #e5e7eb;
   border-radius: 8px;

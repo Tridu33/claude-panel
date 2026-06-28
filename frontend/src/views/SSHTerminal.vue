@@ -125,6 +125,9 @@
           清空
         </button>
       </div>
+      
+      <!-- 虚拟键盘 -->
+      <VirtualKeyboard v-model="commandInput" @send="executeCommand" />
     </div>
   </div>
 </template>
@@ -134,9 +137,13 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
+import VirtualKeyboard from '../components/VirtualKeyboard.vue'
 
 export default {
   name: 'SSHTerminal',
+  components: {
+    VirtualKeyboard
+  },
   setup() {
     const connected = ref(false)
     const connecting = ref(false)
