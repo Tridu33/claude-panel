@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Claude 键盘控制面板</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div class="page">
+  <header class="page-header">
+    <div class="header-left">
+      <span class="logo">⌨️</span>
+      <div>
+        <h1>Claude 键盘控制面板</h1>
+        <p class="subtitle">软件预装平替版 Typeless · USB / 蓝牙双模输入</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="ws-badge" class="badge badge-off">WS 断开</span>
+      <select id="mode-select" title="切换模式">
+        <option value="0">Mode 0 — Claude / Cursor</option>
+        <option value="1">Mode 1 — 自定义快捷键</option>
+        <option value="2">Mode 2 — 宏定义小键盘</option>
+      </select>
+    </div>
+  </header>
+
+  <!-- 键盘机身 -->
+  <div class="keyboard-body">
+
+    <!-- 顶部工具栏：LED + LCD -->
+    <div class="top-row">
+      <!-- LED 流水灯 -->
+      <div class="led-strip-wrap">
+        <div class="led-label">流水灯 · Task 运行状态</div>
+        <div class="led-strip" id="led-strip">
+          <div class="led" id="led-0"></div>
+          <div class="led" id="led-1"></div>
+          <div class="led" id="led-2"></div>
+          <div class="led" id="led-3"></div>
+          <div class="led" id="led-4"></div>
+          <div class="led" id="led-5"></div>
+          <div class="led" id="led-6"></div>
+        </div>
+      </div>
+
+      <!-- LCD 屏 -->
+      <div class="lcd-wrap">
+        <div class="lcd-label">液晶屏 · 信息 / 动图</div>
+        <div class="lcd-screen" id="lcd-screen">
+          <div class="lcd-scanline"></div>
+          <span id="lcd-text">Ready</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 按键区 + 拨杆 -->
+    <div class="key-row">
+      <!-- 麦克风键 -->
+      <button class="key-btn" id="btn-mic" data-key="mic" title="语音输入">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2" width="6" height="12" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+          <line x1="8" y1="22" x2="16" y2="22"/>
+        </svg>
+        <span class="key-ripple"></span>
+      </button>
+
+      <!-- YES 键 -->
+      <button class="key-btn key-yes" id="btn-yes" data-key="yes" title="确认">
+        <span class="key-label">YES</span>
+        <span class="key-ripple"></span>
+      </button>
+
+      <!-- NO 键 -->
+      <button class="key-btn key-no" id="btn-no" data-key="no" title="拒绝">
+        <span class="key-label">NO</span>
+        <span class="key-ripple"></span>
+      </button>
+
+      <!-- Enter 键 -->
+      <button class="key-btn" id="btn-enter" data-key="enter" title="提交/执行">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 10 4 15 9 20"/>
+          <path d="M20 4v7a4 4 0 0 1-4 4H4"/>
+        </svg>
+        <span class="key-ripple"></span>
+      </button>
+
+      <!-- 自动批准拨杆 -->
+      <div class="toggle-wrap">
+        <div class="toggle-label">自动批准</div>
+        <label class="toggle-switch" title="自动批准拨杆">
+          <input type="checkbox" id="auto-approve-toggle" />
+          <span class="slider"></span>
+        </label>
+        <div class="toggle-state" id="toggle-state">OFF</div>
+      </div>
+    </div>
+
+  </div><!-- /keyboard-body -->
+
+  <!-- 底部信息区 -->
+  <div class="info-row">
+    <div class="info-box">
+      <div class="info-title">设备规格</div>
+      <ul>
+        <li>USB · 蓝牙 双模输入</li>
+        <li>Mode 0 — claude / cursor</li>
+        <li>Mode 1/2 — 自定义快捷键 / 宏定义小键盘</li>
+        <li>代码全部开源，可无限自定义</li>
+      </ul>
+    </div>
+
+    <!-- 事件日志 -->
+    <div class="log-box">
+      <div class="log-title">
+        事件日志
+        <button id="clear-log" class="btn-ghost">清空</button>
+      </div>
+      <ul id="log-list"></ul>
+    </div>
+  </div>
+
+  <!-- LCD 自定义输入 -->
+  <div class="lcd-input-row">
+    <input type="text" id="lcd-input" placeholder="在此输入 LCD 自定义文字（最多 32 字符）" maxlength="32" />
+    <button id="send-lcd" class="btn-primary">发送到 LCD</button>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
