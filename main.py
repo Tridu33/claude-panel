@@ -3,13 +3,16 @@ Claude 键盘控制面板 - FastAPI 服务器
 支持按键事件、WebSocket 实时通信、LED 状态管理
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 import asyncio
 import json
 import subprocess
 import os
+import hmac
+import hashlib
 from typing import Optional
 from datetime import datetime
 import uvicorn
@@ -19,6 +22,16 @@ from dotenv import load_dotenv
 # 加载环境变量
 load_dotenv()
 
+# 确保 tmux 使用与登录 shell 一致的 socket 目录。
+# .bashrc / .zshrc 中设置了 TMUX_TMPDIR="$HOME/.tmux",tmux 的 socket 落在
+# ~/.tmux/tmux-<uid>/default。但后端常由非交互式进程(systemd / 直连 uvicorn)启动,
+# 不会 source 这些文件,导致 tmux list-sessions 连到默认 /tmp/tmux-<uid>/default
+# (空 socket)而看不到 main/tmp 等真实会话。这里在缺失时补回该变量。
+if not os.environ.get("TMUX_TMPDIR"):
+    _tmux_tmp_dir = os.path.join(os.path.expanduser("~"), ".tmux")
+    if os.path.isdir(_tmux_tmp_dir):
+        os.environ["TMUX_TMPDIR"] = _tmux_tmp_dir
+
 app = FastAPI(title="Claude控制面板", version="1.0.0")
 
 # 读取环境变量
@@ -27,6 +40,83 @@ PANEL_SECERT = os.getenv("PANEL_SECERT", "")
 
 print(f"[启动] 面板配置已加载")
 
+# ── 鉴权 ──────────────────────────────────────────────────
+# 用面板密码作为 HMAC 签名密钥:无状态、跨 reload 稳定。
+AUTH_SECRET = (PANEL_SECERT or "claude-panel-default-secret").encode()
+AUTH_COOKIE = "panel_session"
+AUTH_TOKEN_QUERY = "token"  # WebSocket 备用通道
+SESSION_MAX_AGE = 60 * 60 * 24 * 7  # 7 天
+
+
+def _sign(payload: str) -> str:
+    return hmac.new(AUTH_SECRET, payload.encode(), hashlib.sha256).hexdigest()
+
+
+def create_session(account: str) -> str:
+    """生成签名 token,格式: account.signature"""
+    return f"{account}.{_sign(account)}"
+
+
+def verify_session(token: Optional[str]) -> Optional[str]:
+    """校验 token,返回 account 或 None"""
+    if not token or "." not in token:
+        return None
+    account, sig = token.rsplit(".", 1)
+    if not account:
+        return None
+    expected = _sign(account)
+    if not hmac.compare_digest(sig, expected):
+        return None
+    # 账号必须仍为当前配置的账号
+    if account != PANEL_ACCOUNT or not PANEL_ACCOUNT:
+        return None
+    return account
+
+
+def _token_from_request(request: Request) -> Optional[str]:
+    """从 cookie 提取 token"""
+    return request.cookies.get(AUTH_COOKIE)
+
+
+def _token_from_ws(ws: WebSocket) -> Optional[str]:
+    """从 WS 握手的 cookie 或 ?token= 提取 token"""
+    cookie_header = ws.headers.get("cookie", "")
+    for part in cookie_header.split(";"):
+        if "=" in part:
+            k, v = part.strip().split("=", 1)
+            if k == AUTH_COOKIE:
+                return v
+    return ws.query_params.get(AUTH_TOKEN_QUERY)
+
+
+# 公开路径(无需登录)
+PUBLIC_PATHS = {
+    "/api/auth/login",
+    "/api/auth/me",
+    "/api/auth/logout",
+    "/",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+}
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """对所有 /api 与 /ws 端点强制登录校验(BaseHTTPMiddleware 不拦截 WebSocket,WS 在端点内单独校验)"""
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if path in PUBLIC_PATHS or path.startswith("/docs"):
+            return await call_next(request)
+        if path.startswith("/api"):
+            account = verify_session(_token_from_request(request))
+            if not account:
+                return JSONResponse(
+                    {"ok": False, "error": "未登录或会话已过期"}, status_code=401
+                )
+        return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,6 +124,50 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(AuthMiddleware)
+
+
+# ── 鉴权端点 ──────────────────────────────────────────────
+@app.post("/api/auth/login")
+async def auth_login(request: Request, response: Response):
+    """登录:校验 .env 中的 PANEL_ACCOUNT / PANEL_SECERT,下发签名 cookie"""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    account = (body.get("account") or "").strip()
+    password = body.get("password") or ""
+
+    if PANEL_ACCOUNT and account == PANEL_ACCOUNT and password == PANEL_SECERT:
+        token = create_session(account)
+        response.set_cookie(
+            AUTH_COOKIE,
+            token,
+            httponly=True,
+            samesite="lax",
+            path="/",
+            max_age=SESSION_MAX_AGE,
+        )
+        return {"ok": True, "account": account, "token": token}
+
+    return JSONResponse(
+        {"ok": False, "error": "账号或密码错误"}, status_code=401
+    )
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(response: Response):
+    response.delete_cookie(AUTH_COOKIE, path="/")
+    return {"ok": True}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    account = verify_session(_token_from_request(request))
+    if account:
+        return {"ok": True, "account": account}
+    return JSONResponse({"ok": False}, status_code=401)
+
 
 # ── 状态存储 ──────────────────────────────────────────────
 class KeyboardState:
@@ -768,6 +902,12 @@ async def ssh_websocket(ws: WebSocket):
     SSH WebSocket 终端
     通过 WebSocket 实现交互式 SSH 终端
     """
+    # 鉴权:未登录直接拒绝
+    if not verify_session(_token_from_ws(ws)):
+        await ws.accept()
+        await ws.send_text(json.dumps({"type": "error", "error": "未登录或会话已过期"}))
+        await ws.close(code=1008)
+        return
     await ws.accept()
     
     try:
@@ -831,6 +971,12 @@ async def ssh_websocket(ws: WebSocket):
 # ── WebSocket 端点 ───────────────────────────────────────────
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
+    # 鉴权:未登录直接拒绝
+    if not verify_session(_token_from_ws(ws)):
+        await ws.accept()
+        await ws.send_text(json.dumps({"type": "error", "error": "未登录或会话已过期"}))
+        await ws.close(code=1008)
+        return
     await manager.connect(ws)
     # 连接时推送当前状态
     await push_state()

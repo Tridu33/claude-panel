@@ -138,6 +138,7 @@ import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
 import VirtualKeyboard from '../components/VirtualKeyboard.vue'
+import { wsUrl } from '../auth'
 
 export default {
   name: 'SSHTerminal',
@@ -176,8 +177,7 @@ export default {
         initTerminal()
 
         // 建立 WebSocket 连接
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        ws = new WebSocket(`${protocol}//${window.location.host}/ws/ssh`)
+        ws = new WebSocket(wsUrl('/ws/ssh'))
 
         ws.onopen = () => {
           console.log('SSH WebSocket 已连接')

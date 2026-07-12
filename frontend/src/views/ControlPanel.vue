@@ -1,6 +1,7 @@
 <template>
   <div class="page">
-    <header class="page-header">
+    <!-- Teleport: WS连接状态 & tmux会话选择器 → App.vue 的 #nav-controls -->
+    <Teleport to="#nav-controls">
       <div class="header-right">
         <span :class="['badge', wsConnected ? 'badge-on' : 'badge-off']">
           WS {{ wsConnected ? '连接' : '断开' }}
@@ -16,10 +17,10 @@
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          新增
+          <span class="btn-label">新增</span>
         </button>
-        <button 
-          @click="showDeleteConfirm" 
+        <button
+          @click="showDeleteConfirm"
           :disabled="!currentSessionName"
           class="btn-delete-session-header"
           title="删除当前会话"
@@ -30,10 +31,10 @@
             <line x1="10" y1="11" x2="10" y2="17"/>
             <line x1="14" y1="11" x2="14" y2="17"/>
           </svg>
-          删除
+          <span class="btn-label">删除</span>
         </button>
       </div>
-    </header>
+    </Teleport>
 
     <!-- 键盘机身 -->
     <div class="keyboard-body">
@@ -50,17 +51,17 @@
           <div class="terminal-controls">
             <div class="line-count-control">
               <label>行数:</label>
-              <input 
-                type="number" 
-                v-model.number="logLines" 
+              <input
+                type="number"
+                v-model.number="logLines"
                 @change="loadSessionLogs"
-                min="10" 
-                max="1000" 
+                min="10"
+                max="1000"
                 class="line-count-input"
               />
             </div>
-            <button 
-              @click="toggleAutoRefresh" 
+            <button
+              @click="toggleAutoRefresh"
               :class="['btn-auto-refresh', autoRefresh ? 'active' : '']"
               :title="autoRefresh ? '关闭自动刷新' : '开启自动刷新'"
             >
@@ -79,148 +80,139 @@
             </button>
           </div>
         </div>
-        <div class="terminal-content" ref="terminalContent">
-          <div v-if="!currentSessionName" class="terminal-placeholder">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
-              <polyline points="4 17 10 11 4 5"/>
-              <line x1="12" y1="19" x2="20" y2="19"/>
-            </svg>
-            <p>请从顶部下拉菜单选择一个 tmux 会话</p>
-          </div>
-          <pre v-else-if="sessionLogs" class="terminal-logs">{{ sessionLogs }}</pre>
-          <div v-else class="terminal-loading">
-            <div class="loading-spinner"></div>
-            <p>加载日志中...</p>
+        <div class="terminal-scroll-wrapper">
+          <div class="terminal-content" ref="terminalContent">
+            <div v-if="!currentSessionName" class="terminal-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                <polyline points="4 17 10 11 4 5"/>
+                <line x1="12" y1="19" x2="20" y2="19"/>
+              </svg>
+              <p>请从顶部导航栏选择一个 tmux 会话</p>
+            </div>
+            <pre v-else-if="sessionLogs" class="terminal-logs">{{ sessionLogs }}</pre>
+            <div v-else class="terminal-loading">
+              <div class="loading-spinner"></div>
+              <p>加载日志中...</p>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- 主内容区 + 右侧栏 -->
-      <div class="main-layout">
-        <!-- 左侧：命令输入 + 事件日志 -->
-        <div class="main-content">
-          <!-- 命令输入区 -->
-          <div class="command-input-section">
-            <div class="command-header">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <polyline points="4 17 10 11 4 5"/>
-                <line x1="12" y1="19" x2="20" y2="19"/>
-              </svg>
-              <span>发送命令到会话: {{ currentSessionName || '未选择' }}</span>
-            </div>
-            <div class="command-input-wrapper">
-              <textarea 
-                v-model="commandInput" 
-                @keydown.ctrl.enter="sendCommand"
-                @keydown.meta.enter="sendCommand"
-                placeholder="输入命令...\n支持多行输入\nCtrl+Enter 或 ⌘+Enter 发送"
-                class="command-textarea"
-                rows="3"
-              ></textarea>
-              <div class="command-buttons">
-                <button 
-                  @click="sendCommand" 
-                  :disabled="!currentSessionName || !commandInput.trim() || sendingCommand"
-                  class="btn-send-command"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <line x1="22" y1="2" x2="11" y2="13"/>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                  </svg>
-                  {{ sendingCommand ? '发送中...' : '发送' }}
-                </button>
-              </div>
-            </div>
+      <!-- 主内容区（无侧栏，全宽） -->
+      <div class="main-content">
+        <!-- 命令输入区 -->
+        <div class="command-input-section">
+          <div class="command-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <polyline points="4 17 10 11 4 5"/>
+              <line x1="12" y1="19" x2="20" y2="19"/>
+            </svg>
+            <span>发送命令到会话: {{ currentSessionName || '未选择' }}</span>
           </div>
-
-          <!-- 虚拟键盘 -->
-          <VirtualKeyboard v-model="commandInput" @send="sendCommand" />
-
-          <!-- 事件日志 -->
-          <div class="log-box">
-            <div class="log-title">
-              事件日志
-              <button @click="clearLogs" class="btn-ghost">清空</button>
+          <div class="command-input-wrapper">
+            <textarea
+              v-model="commandInput"
+              @keydown.ctrl.enter="sendCommand"
+              @keydown.meta.enter="sendCommand"
+              placeholder="输入命令...\n支持多行输入\nCtrl+Enter 或 ⌘+Enter 发送"
+              class="command-textarea"
+              rows="3"
+            ></textarea>
+            <div class="command-buttons">
+              <button
+                @click="sendCommand"
+                :disabled="!currentSessionName || !commandInput.trim() || sendingCommand"
+                class="btn-send-command"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <line x1="22" y1="2" x2="11" y2="13"/>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+                {{ sendingCommand ? '发送中...' : '发送' }}
+              </button>
             </div>
-            <ul class="log-list">
-              <li v-for="(log, index) in logs" :key="index" class="log-item">
-                <span class="log-time">{{ log.time }}</span>
-                <span class="log-action">{{ log.action }}</span>
-                <span class="log-detail">{{ log.detail }}</span>
-              </li>
-            </ul>
           </div>
         </div>
 
-        <!-- 右侧：按键区 + 拨杆 -->
-        <div class="sidebar">
-          <div class="key-column">
-            <!-- 第一列：语音键、Yes、No、自动拨杆 -->
-            <div class="key-column-inner">
-              <!-- 麦克风键 -->
-              <button class="key-btn key-compact" @click="pressKey('mic')" title="语音输入">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="9" y="2" width="6" height="12" rx="3"/>
-                  <path d="M5 10a7 7 0 0 0 14 0"/>
-                  <line x1="12" y1="19" x2="12" y2="22"/>
-                  <line x1="8" y1="22" x2="16" y2="22"/>
-                </svg>
-              </button>
+        <!-- 控制按钮区：7个按键 + 1个自动批准拨杆（从原 sidebar 移入） -->
+        <div class="control-buttons">
+          <!-- 麦克风键 -->
+          <button class="key-btn key-compact" @click="pressKey('mic')" title="语音输入">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="2" width="6" height="12" rx="3"/>
+              <path d="M5 10a7 7 0 0 0 14 0"/>
+              <line x1="12" y1="19" x2="12" y2="22"/>
+              <line x1="8" y1="22" x2="16" y2="22"/>
+            </svg>
+          </button>
 
-              <!-- YES 键 -->
-              <button class="key-btn key-compact key-yes" @click="pressKey('yes')" title="确认">
-                <span class="key-label-small">YES</span>
-              </button>
+          <!-- YES 键 -->
+          <button class="key-btn key-compact key-yes" @click="pressKey('yes')" title="确认">
+            <span class="key-label-small">YES</span>
+          </button>
 
-              <!-- NO 键 -->
-              <button class="key-btn key-compact key-no" @click="pressKey('no')" title="拒绝">
-                <span class="key-label-small">NO</span>
-              </button>
+          <!-- NO 键 -->
+          <button class="key-btn key-compact key-no" @click="pressKey('no')" title="拒绝">
+            <span class="key-label-small">NO</span>
+          </button>
 
-              <!-- 自动批准拨杆 -->
-              <div class="toggle-wrap-compact">
-                <div class="toggle-label-small">自动</div>
-                <label class="toggle-switch-compact" title="自动批准拨杆">
-                  <input type="checkbox" v-model="autoApprove" @change="toggleAutoApprove" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-            </div>
-
-            <!-- 第二列：Esc、上键、下键、Enter -->
-            <div class="key-column-inner">
-              <!-- Esc 键 -->
-              <button class="key-btn key-compact key-esc" @click="pressKey('esc')" title="退出">
-                <span class="key-label-small key-esc-label">esc</span>
-              </button>
-
-              <!-- 上键 -->
-              <button class="key-btn key-compact key-arrow-compact" @click="pressKey('up')" title="上">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="18 15 12 9 6 15"/>
-                </svg>
-              </button>
-
-              <!-- 下键 -->
-              <button class="key-btn key-compact key-arrow-compact" @click="pressKey('down')" title="下">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
-
-              <!-- Enter 键 -->
-              <button class="key-btn key-compact" @click="pressKey('enter')" title="提交/执行">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="9 10 4 15 9 20"/>
-                  <path d="M20 4v7a4 4 0 0 1-4 4H4"/>
-                </svg>
-              </button>
-            </div>
+          <!-- 自动批准拨杆 -->
+          <div class="toggle-wrap-compact">
+            <div class="toggle-label-small">自动</div>
+            <label class="toggle-switch-compact" title="自动批准拨杆">
+              <input type="checkbox" v-model="autoApprove" @change="toggleAutoApprove" />
+              <span class="slider"></span>
+            </label>
           </div>
+
+          <!-- Esc 键 -->
+          <button class="key-btn key-compact key-esc" @click="pressKey('esc')" title="退出">
+            <span class="key-label-small key-esc-label">esc</span>
+          </button>
+
+          <!-- 上键 -->
+          <button class="key-btn key-compact key-arrow-compact" @click="pressKey('up')" title="上">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="18 15 12 9 6 15"/>
+            </svg>
+          </button>
+
+          <!-- 下键 -->
+          <button class="key-btn key-compact key-arrow-compact" @click="pressKey('down')" title="下">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+
+          <!-- Enter 键 -->
+          <button class="key-btn key-compact" @click="pressKey('enter')" title="提交/执行">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 10 4 15 9 20"/>
+              <path d="M20 4v7a4 4 0 0 1-4 4H4"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- 虚拟键盘 -->
+        <VirtualKeyboard v-model="commandInput" @send="sendCommand" />
+
+        <!-- 事件日志 -->
+        <div class="log-box">
+          <div class="log-title">
+            事件日志
+            <button @click="clearLogs" class="btn-ghost">清空</button>
+          </div>
+          <ul class="log-list">
+            <li v-for="(log, index) in logs" :key="index" class="log-item">
+              <span class="log-time">{{ log.time }}</span>
+              <span class="log-action">{{ log.action }}</span>
+              <span class="log-detail">{{ log.detail }}</span>
+            </li>
+          </ul>
         </div>
       </div>
     </div>
@@ -235,11 +227,11 @@
         <div class="modal-body">
           <div class="form-group">
             <label>项目路径（绝对路径）</label>
-            <input 
-              type="text" 
-              v-model="newSessionPath" 
+            <input
+              type="text"
+              v-model="newSessionPath"
               @keyup.enter="createSession"
-              placeholder="例如: /Users/mac/codes" 
+              placeholder="例如: /Users/mac/codes"
               class="path-input"
               ref="pathInput"
             />
@@ -297,6 +289,7 @@
 // 这里保持原有script内容不变，仅修改template
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import VirtualKeyboard from '../components/VirtualKeyboard.vue'
+import { wsUrl } from '../auth'
 
 export default {
   name: 'ControlPanel',
@@ -444,8 +437,7 @@ export default {
     }
 
     const connectWebSocket = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      ws = new WebSocket(`${protocol}//${window.location.host}/ws`)
+      ws = new WebSocket(wsUrl('/ws'))
 
       ws.onopen = () => {
         wsConnected.value = true
@@ -836,58 +828,34 @@ export default {
 </script>
 
 <style scoped>
-/* 页面布局 */
+/* ================================================================
+   页面布局 — 相对/自适应，不写死固定宽度
+   ================================================================ */
 .page {
+  width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 1rem;
+  padding: clamp(0.5rem, 1.5vw, 1rem);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: clamp(0.5rem, 1.2vw, 1rem);
 }
 
-/* 头部 */
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.logo {
-  font-size: 2.5rem;
-}
-
-.header-left h1 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-
+/* ---- Teleport 到 #nav-controls 的 WS / tmux 控件 ---- */
 .header-right {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: clamp(0.3rem, 0.8vw, 0.75rem);
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .badge {
-  padding: 0.4rem 0.8rem;
+  padding: 0.3rem 0.65rem;
   border-radius: 20px;
-  font-size: 0.8rem;
+  font-size: clamp(0.7rem, 1vw, 0.8rem);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .badge-on {
@@ -901,13 +869,14 @@ export default {
 }
 
 .tmux-select {
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.75rem;
   background: white;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: clamp(0.75rem, 1vw, 0.9rem);
   cursor: pointer;
-  min-width: 200px;
+  min-width: clamp(140px, 16vw, 200px);
+  max-width: 280px;
 }
 
 .tmux-select:focus {
@@ -919,14 +888,15 @@ export default {
 .btn-delete-session-header {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
+  gap: 0.3rem;
+  padding: 0.4rem 0.75rem;
   border: none;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: clamp(0.7rem, 0.9vw, 0.85rem);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .btn-new-session {
@@ -956,14 +926,14 @@ export default {
   cursor: not-allowed;
 }
 
-/* 键盘机身 */
+/* ---- 键盘机身 ---- */
 .keyboard-body {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: clamp(0.5rem, 1.2vw, 1rem);
 }
 
-/* 终端区域 */
+/* ---- 终端区域 ---- */
 .terminal-section {
   background: #1e1e1e;
   border-radius: 12px;
@@ -975,7 +945,9 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: clamp(0.6rem, 1.2vw, 1rem) clamp(0.75rem, 1.5vw, 1.5rem);
   background: #2d2d2d;
   border-bottom: 1px solid #3e3e3e;
 }
@@ -986,26 +958,27 @@ export default {
   gap: 0.5rem;
   color: #10b981;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: clamp(0.8rem, 1.1vw, 0.95rem);
 }
 
 .terminal-controls {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .line-count-control {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   color: #9ca3af;
-  font-size: 0.85rem;
+  font-size: clamp(0.7rem, 0.9vw, 0.85rem);
 }
 
 .line-count-input {
-  width: 70px;
-  padding: 0.4rem 0.6rem;
+  width: clamp(50px, 8vw, 70px);
+  padding: 0.35rem 0.5rem;
   background: #1e1e1e;
   border: 1px solid #3e3e3e;
   border-radius: 6px;
@@ -1023,16 +996,17 @@ export default {
 .btn-refresh {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.75rem;
+  gap: 0.3rem;
+  padding: 0.4rem 0.6rem;
   background: #374151;
   color: #e2e8f0;
   border: 1px solid #4b5563;
   border-radius: 6px;
-  font-size: 0.8rem;
+  font-size: clamp(0.7rem, 0.85vw, 0.8rem);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .btn-auto-refresh:hover,
@@ -1061,13 +1035,39 @@ export default {
   to { transform: rotate(360deg); }
 }
 
+/* 终端滚动包裹层（提供横向滚动条） */
+.terminal-scroll-wrapper {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.terminal-scroll-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.terminal-scroll-wrapper::-webkit-scrollbar-track {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+.terminal-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.terminal-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
 .terminal-content {
-  height: 400px;
+  min-width: 100%;
+  height: clamp(250px, 40vh, 400px);
   overflow-y: auto;
-  padding: 1rem;
+  padding: clamp(0.5rem, 1.2vw, 1rem);
   background: #0f172a;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  font-size: 0.85rem;
+  font-size: clamp(0.7rem, 0.95vw, 0.85rem);
   line-height: 1.5;
 }
 
@@ -1095,6 +1095,7 @@ export default {
   align-items: center;
   justify-content: center;
   height: 100%;
+  min-height: 200px;
   color: #64748b;
   gap: 1rem;
 }
@@ -1107,7 +1108,8 @@ export default {
 .terminal-placeholder p,
 .terminal-loading p {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: clamp(0.8rem, 1vw, 0.95rem);
+  text-align: center;
 }
 
 .loading-spinner {
@@ -1130,24 +1132,19 @@ export default {
   line-height: inherit;
 }
 
-/* 主布局 */
-.main-layout {
-  display: grid;
-  grid-template-columns: 1fr 180px;
-  gap: 1rem;
-}
-
+/* ---- 主内容区（全宽，无侧栏） ---- */
 .main-content {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: clamp(0.5rem, 1.2vw, 1rem);
+  width: 100%;
 }
 
-/* 命令输入区 */
+/* ---- 命令输入区 ---- */
 .command-input-section {
   background: #1e1e1e;
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: clamp(0.75rem, 1.5vw, 1.5rem);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
@@ -1157,8 +1154,8 @@ export default {
   gap: 0.5rem;
   color: #10b981;
   font-weight: 600;
-  font-size: 0.95rem;
-  margin-bottom: 1rem;
+  font-size: clamp(0.8rem, 1.1vw, 0.95rem);
+  margin-bottom: clamp(0.5rem, 1vw, 1rem);
 }
 
 .command-input-wrapper {
@@ -1169,17 +1166,18 @@ export default {
 
 .command-textarea {
   width: 100%;
-  padding: 1rem;
+  padding: clamp(0.5rem, 1vw, 1rem);
   background: #0f172a;
   border: 2px solid #334155;
   border-radius: 8px;
   color: #e2e8f0;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  font-size: 0.9rem;
+  font-size: clamp(0.75rem, 0.95vw, 0.9rem);
   line-height: 1.5;
   resize: vertical;
   min-height: 80px;
   max-height: 300px;
+  box-sizing: border-box;
 }
 
 .command-textarea:focus {
@@ -1200,13 +1198,14 @@ export default {
 .btn-send-command {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, 0.95vw, 0.9rem);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -1225,279 +1224,80 @@ export default {
   transform: none;
 }
 
-/* 虚拟键盘 */
-.virtual-keyboard {
+/* ---- 虚拟键盘（组件根元素样式穿透） ---- */
+:deep(.virtual-keyboard) {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 16px;
   padding: 1rem;
   box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
 }
 
-.keyboard-row {
-  display: flex;
-  gap: 0.4rem;
-  margin-bottom: 0.4rem;
-  justify-content: center;
-}
-
-.keyboard-row:last-child {
-  margin-bottom: 0;
-}
-
-.key {
-  flex: 1;
-  max-width: 60px;
-  padding: 0.75rem 0.5rem;
-  background: linear-gradient(145deg, #ffffff 0%, #f3f4f6 100%);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-height: 44px;
+/* ================================================================
+   控制按钮区 — 7 键 + 1 拨杆（原 sidebar 内容移入）
+   ================================================================ */
+.control-buttons {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-wrap: wrap;
+  gap: clamp(0.4rem, 1vw, 0.75rem);
+  padding: clamp(0.5rem, 1.2vw, 1rem);
+  background: #f9fafb;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.key:hover {
-  background: linear-gradient(145deg, #f9fafb 0%, #e5e7eb 100%);
-  border-color: rgba(255, 255, 255, 0.5);
+/* 按键基础 */
+.key-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(48px, 8vw, 70px);
+  height: clamp(48px, 8vw, 70px);
+  padding: 0.5rem;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.key-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
-.key:active {
+.key-btn:active {
   transform: translateY(0);
-  background: linear-gradient(145deg, #e5e7eb 0%, #d1d5db 100%);
 }
 
-/* 数字键 - 橙色渐变 */
-.key-number {
-  background: linear-gradient(145deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
-  border-color: rgba(251, 191, 36, 0.3);
-}
-
-.key-number:hover {
-  background: linear-gradient(145deg, #fde68a 0%, #fcd34d 100%);
-}
-
-/* 字母键 - 蓝紫渐变 */
-.key-letter {
-  background: linear-gradient(145deg, #dbeafe 0%, #bfdbfe 100%);
-  color: #1e40af;
-  border-color: rgba(147, 197, 253, 0.3);
-}
-
-.key-letter:hover {
-  background: linear-gradient(145deg, #bfdbfe 0%, #93c5fd 100%);
-}
-
-/* 符号键 - 粉色渐变 */
-.key-symbol {
-  background: linear-gradient(145deg, #fce7f3 0%, #fbcfe8 100%);
-  color: #9d174d;
-  border-color: rgba(251, 207, 232, 0.3);
-}
-
-.key-symbol:hover {
-  background: linear-gradient(145deg, #fbcfe8 0%, #f9a8d4 100%);
-}
-
-/* 功能键 - 青绿渐变 */
-.key-function {
-  background: linear-gradient(145deg, #d1fae5 0%, #a7f3d0 100%);
-  color: #065f46;
-  border-color: rgba(167, 243, 208, 0.3);
-}
-
-.key-function:hover {
-  background: linear-gradient(145deg, #a7f3d0 0%, #6ee7b7 100%);
-}
-
-.key-special {
-  background: linear-gradient(145deg, #fef3c7 0%, #fde68a 100%);
-  border-color: rgba(251, 191, 36, 0.3);
-  color: #92400e;
-}
-
-.key-shift {
-  background: linear-gradient(145deg, #fef3c7 0%, #fde68a 100%);
-  border-color: rgba(251, 191, 36, 0.3);
-  color: #92400e;
-}
-
-.key-shift:hover {
-  background: linear-gradient(145deg, #fde68a 0%, #fcd34d 100%);
-}
-
-.key-modifier {
-  background: linear-gradient(145deg, #e0e7ff 0%, #c7d2fe 100%);
-  border-color: rgba(199, 210, 254, 0.3);
-  color: #3730a3;
-  font-size: 0.8rem;
-}
-
-.key-caps {
-  background: linear-gradient(145deg, #e0e7ff 0%, #c7d2fe 100%);
-  border-color: rgba(199, 210, 254, 0.3);
-  color: #3730a3;
-}
-
-.key-ctrl {
-  background: linear-gradient(145deg, #e0e7ff 0%, #c7d2fe 100%);
-  border-color: rgba(199, 210, 254, 0.3);
-  color: #3730a3;
-}
-
-.key-alt {
-  background: linear-gradient(145deg, #e0e7ff 0%, #c7d2fe 100%);
-  border-color: rgba(199, 210, 254, 0.3);
-  color: #3730a3;
-}
-
-.key-active {
-  background: linear-gradient(145deg, #10b981 0%, #059669 100%) !important;
-  border-color: rgba(16, 185, 129, 0.5) !important;
-  color: white !important;
-  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
-}
-
-.key-wide {
-  max-width: 100px;
-  flex: 1.5;
-}
-
-.key-space {
-  flex: 4;
-  max-width: none;
-  background: linear-gradient(145deg, #f3f4f6 0%, #e5e7eb 100%);
-}
-
-.key-space:hover {
-  background: linear-gradient(145deg, #e5e7eb 0%, #d1d5db 100%);
-}
-
-.key-tab {
-  max-width: 80px;
-  flex: 1.5;
-}
-
-.key-enter {
-  max-width: 100px;
-  flex: 1.5;
-  background: linear-gradient(145deg, #10b981 0%, #059669 100%);
-  color: white;
-  border-color: rgba(16, 185, 129, 0.3);
-  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
-}
-
-.key-enter:hover {
-  background: linear-gradient(145deg, #059669 0%, #047857 100%);
-  box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4);
-}
-
-/* 日志框 */
-.log-box {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.log-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 1rem;
-  font-size: 1.1rem;
-}
-
-.log-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.log-item {
-  padding: 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  gap: 1rem;
-  font-size: 0.9rem;
-}
-
-.log-item:last-child {
-  border-bottom: none;
-}
-
-.log-time {
-  color: #6b7280;
-  font-family: monospace;
-  min-width: 80px;
-}
-
-.log-action {
-  color: #374151;
-  font-weight: 500;
-  min-width: 100px;
-}
-
-.log-detail {
-  color: #6b7280;
-  flex: 1;
-}
-
-/* 右侧栏 */
-.sidebar {
-  background: #f9fafb;
-  border-radius: 12px;
-  padding: 1rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.key-column {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.5rem;
-}
-
-.key-column-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-/* 紧凑按键 */
 .key-compact {
-  padding: 0.5rem !important;
-  min-height: auto !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 0.4rem;
 }
 
 .key-compact svg {
-  width: 12px;
-  height: 12px;
+  width: clamp(12px, 2vw, 16px);
+  height: clamp(12px, 2vw, 16px);
 }
 
 .key-label-small {
-  font-size: 0.75rem;
+  font-size: clamp(0.65rem, 0.9vw, 0.75rem);
   font-weight: 700;
 }
 
-.key-arrow-compact svg {
-  width: 12px;
-  height: 12px;
+.key-yes {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border-color: #10b981;
+}
+
+.key-no {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border-color: #ef4444;
 }
 
 .key-esc {
@@ -1517,20 +1317,42 @@ export default {
   font-weight: 700;
 }
 
-/* 紧凑拨杆 */
+.key-arrow-compact svg {
+  width: clamp(12px, 2vw, 16px);
+  height: clamp(12px, 2vw, 16px);
+}
+
+/* 按键波纹 */
+.key-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  transform: scale(0);
+  animation: ripple 0.6s linear;
+  pointer-events: none;
+}
+
+@keyframes ripple {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* ---- 紧凑拨杆 ---- */
 .toggle-wrap-compact {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 0.5rem;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
   background: white;
   border-radius: 8px;
-  margin-top: 0.5rem;
+  flex-shrink: 0;
 }
 
 .toggle-label-small {
-  font-size: 0.75rem;
+  font-size: clamp(0.65rem, 0.8vw, 0.75rem);
   color: #6b7280;
   font-weight: 600;
 }
@@ -1580,7 +1402,66 @@ export default {
   transform: translateX(20px);
 }
 
-/* 弹窗样式 */
+/* ---- 事件日志 ---- */
+.log-box {
+  background: white;
+  border-radius: 12px;
+  padding: clamp(0.75rem, 1.5vw, 1.5rem);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.log-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: clamp(0.5rem, 1vw, 1rem);
+  font-size: clamp(0.9rem, 1.2vw, 1.1rem);
+}
+
+.log-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: clamp(180px, 30vh, 300px);
+  overflow-y: auto;
+}
+
+.log-item {
+  padding: clamp(0.4rem, 0.8vw, 0.75rem);
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  gap: clamp(0.4rem, 0.8vw, 1rem);
+  font-size: clamp(0.75rem, 0.9vw, 0.9rem);
+  flex-wrap: wrap;
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: #6b7280;
+  font-family: monospace;
+  min-width: 70px;
+  flex-shrink: 0;
+}
+
+.log-action {
+  color: #374151;
+  font-weight: 500;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.log-detail {
+  color: #6b7280;
+  flex: 1;
+  min-width: 120px;
+}
+
+/* ---- 弹窗 ---- */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1593,6 +1474,7 @@ export default {
   align-items: center;
   z-index: 1000;
   backdrop-filter: blur(4px);
+  padding: 1rem;
 }
 
 .modal-content {
@@ -1600,7 +1482,7 @@ export default {
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   max-width: 600px;
-  width: 90%;
+  width: 100%;
   max-height: 90vh;
   overflow: hidden;
   animation: modalSlideIn 0.3s ease-out;
@@ -1625,7 +1507,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 2rem;
+  padding: 1.25rem 1.5rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 }
@@ -1636,7 +1518,7 @@ export default {
 
 .modal-header h3 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: clamp(1rem, 1.4vw, 1.25rem);
   font-weight: 600;
 }
 
@@ -1654,6 +1536,7 @@ export default {
   justify-content: center;
   border-radius: 4px;
   transition: background 0.2s;
+  flex-shrink: 0;
 }
 
 .btn-close:hover {
@@ -1661,7 +1544,7 @@ export default {
 }
 
 .modal-body {
-  padding: 2rem;
+  padding: clamp(1rem, 2vw, 2rem);
 }
 
 .form-group {
@@ -1684,6 +1567,7 @@ export default {
   font-size: 1rem;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   transition: all 0.2s;
+  box-sizing: border-box;
 }
 
 .path-input:focus {
@@ -1723,16 +1607,18 @@ export default {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  padding: 1.5rem 2rem;
+  padding: 1rem 1.5rem;
   background: #f9fafb;
   border-top: 1px solid #e5e7eb;
+  flex-wrap: wrap;
 }
 
 .btn-cancel,
-.btn-create {
-  padding: 0.75rem 1.5rem;
+.btn-create,
+.btn-delete-confirm {
+  padding: 0.65rem 1.25rem;
   border-radius: 8px;
-  font-size: 0.95rem;
+  font-size: clamp(0.85rem, 1vw, 0.95rem);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -1767,69 +1653,10 @@ export default {
   transform: none;
 }
 
-/* 警告信息 */
-.warning-message {
-  text-align: center;
-  color: #374151;
-}
-
-.warning-message svg {
-  color: #ef4444;
-  margin-bottom: 1rem;
-}
-
-.warning-message p {
-  margin: 0.75rem 0;
-  font-size: 1rem;
-}
-
-.warning-message code {
-  background: #fef3c7;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  color: #92400e;
-  font-weight: 600;
-}
-
-.warning-detail {
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-
-.warning-list {
-  text-align: left;
-  background: #fef3c7;
-  padding: 1rem 1.5rem;
-  border-radius: 8px;
-  margin: 1rem 0;
-  list-style-type: disc;
-  padding-left: 2.5rem;
-}
-
-.warning-list li {
-  margin: 0.5rem 0;
-  color: #92400e;
-  font-size: 0.9rem;
-}
-
-.warning-note {
-  color: #ef4444;
-  font-weight: 600;
-  font-size: 0.95rem;
-  margin-top: 1rem;
-}
-
 .btn-delete-confirm {
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
 }
 
@@ -1844,58 +1671,60 @@ export default {
   transform: none;
 }
 
-/* 按键样式 */
-.key-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 70px;
-  height: 70px;
-  padding: 0.5rem;
-  background: white;
-  border: 2px solid #e5e7eb;
+/* 警告信息 */
+.warning-message {
+  text-align: center;
+  color: #374151;
+}
+
+.warning-message svg {
+  color: #ef4444;
+  margin-bottom: 1rem;
+  width: clamp(36px, 6vw, 48px);
+  height: clamp(36px, 6vw, 48px);
+}
+
+.warning-message p {
+  margin: 0.6rem 0;
+  font-size: clamp(0.85rem, 1vw, 1rem);
+}
+
+.warning-message code {
+  background: #fef3c7;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  color: #92400e;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.warning-detail {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.warning-list {
+  text-align: left;
+  background: #fef3c7;
+  padding: 0.8rem 1.2rem;
   border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  overflow: hidden;
+  margin: 0.8rem 0;
+  list-style-type: disc;
+  padding-left: 2rem;
 }
 
-.key-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+.warning-list li {
+  margin: 0.4rem 0;
+  color: #92400e;
+  font-size: clamp(0.8rem, 0.9vw, 0.9rem);
 }
 
-.key-btn:active {
-  transform: translateY(0);
-}
-
-.key-yes {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  border-color: #10b981;
-}
-
-.key-no {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
-  border-color: #ef4444;
-}
-
-.key-ripple {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.6);
-  transform: scale(0);
-  animation: ripple 0.6s linear;
-  pointer-events: none;
-}
-
-@keyframes ripple {
-  to {
-    transform: scale(4);
-    opacity: 0;
-  }
+.warning-note {
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-top: 0.8rem;
 }
 
 .btn-ghost {
@@ -1910,5 +1739,181 @@ export default {
 
 .btn-ghost:hover {
   background: #f3f4f6;
+}
+
+/* ================================================================
+   响应式断点 — 平板
+   ================================================================ */
+@media (max-width: 768px) {
+  .page {
+    padding: 0.4rem;
+    gap: 0.5rem;
+  }
+
+  .header-right {
+    gap: 0.3rem;
+  }
+
+  .tmux-select {
+    min-width: 120px;
+    font-size: 0.75rem;
+  }
+
+  .btn-label {
+    display: none;
+  }
+
+  .btn-new-session,
+  .btn-delete-session-header {
+    padding: 0.35rem 0.55rem;
+  }
+
+  .terminal-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .terminal-content {
+    height: clamp(200px, 35vh, 300px);
+    font-size: 0.7rem;
+  }
+
+  .control-buttons {
+    gap: 0.4rem;
+    padding: 0.5rem 0.6rem;
+  }
+
+  .key-btn {
+    width: clamp(40px, 12vw, 56px);
+    height: clamp(40px, 12vw, 56px);
+  }
+
+  .log-list {
+    max-height: 180px;
+  }
+
+  .log-item {
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .log-time,
+  .log-action {
+    min-width: auto;
+  }
+
+  .command-textarea {
+    font-size: 16px; /* 防止iOS缩放 */
+  }
+
+  .modal-content {
+    margin: 0.5rem;
+    max-height: 85vh;
+  }
+}
+
+/* ================================================================
+   响应式断点 — 手机
+   ================================================================ */
+@media (max-width: 480px) {
+  .page {
+    padding: 0.25rem;
+    gap: 0.4rem;
+  }
+
+  .header-right {
+    gap: 0.2rem;
+  }
+
+  .badge {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.45rem;
+  }
+
+  .tmux-select {
+    min-width: 100px;
+    max-width: 160px;
+    font-size: 0.7rem;
+  }
+
+  .terminal-header {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .terminal-title {
+    font-size: 0.75rem;
+  }
+
+  .terminal-content {
+    height: 180px;
+    min-width: 480px; /* 强制最小宽度，保证内容不挤压，启用横向滚动条 */
+    font-size: 0.65rem;
+    padding: 0.4rem;
+  }
+
+  .terminal-scroll-wrapper {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .terminal-scroll-wrapper::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .control-buttons {
+    gap: 0.3rem;
+    padding: 0.4rem;
+  }
+
+  .key-btn {
+    width: clamp(36px, 14vw, 48px);
+    height: clamp(36px, 14vw, 48px);
+    border-radius: 6px;
+  }
+
+  .key-compact svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .key-label-small {
+    font-size: 0.6rem;
+  }
+
+  .toggle-wrap-compact {
+    padding: 0.3rem 0.4rem;
+  }
+
+  .toggle-label-small {
+    font-size: 0.6rem;
+  }
+
+  .command-input-section {
+    padding: 0.6rem;
+  }
+
+  .btn-send-command {
+    padding: 0.6rem 1rem;
+    font-size: 0.8rem;
+  }
+
+  .log-box {
+    padding: 0.6rem;
+  }
+
+  .log-item {
+    padding: 0.4rem;
+  }
+
+  .modal-header {
+    padding: 0.8rem 1rem;
+  }
+
+  .modal-body {
+    padding: 0.8rem;
+  }
+
+  .modal-footer {
+    padding: 0.6rem 1rem;
+  }
 }
 </style>
