@@ -6,12 +6,16 @@
         <span :class="['badge', wsConnected ? 'badge-on' : 'badge-off']">
           WS {{ wsConnected ? '连接' : '断开' }}
         </span>
-        <select v-model="currentMode" @change="changeMode" title="切换tmux会话" class="tmux-select">
-          <option value="" disabled>选择 tmux 会话</option>
-          <option v-for="session in tmuxSessions" :key="session.name" :value="session.name">
-            {{ session.name }}
-          </option>
-        </select>
+        <div class="tmux-select-wrap">
+          <select v-model="currentMode" @change="changeMode" title="切换tmux会话" class="tmux-select">
+            <option value="" disabled>
+              {{ tmuxSessions.length ? '选择 tmux 会话' : '（无活动会话,点击右侧「新增」创建）' }}
+            </option>
+            <option v-for="session in tmuxSessions" :key="session.name" :value="session.name">
+              {{ session.name }}
+            </option>
+          </select>
+        </div>
         <button @click="showCreateSessionDialog" class="btn-new-session" title="新增 Session">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -868,6 +872,12 @@ export default {
   color: #ef4444;
 }
 
+.tmux-select-wrap {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
 .tmux-select {
   padding: 0.4rem 0.75rem;
   background: white;
@@ -876,7 +886,7 @@ export default {
   font-size: clamp(0.75rem, 1vw, 0.9rem);
   cursor: pointer;
   min-width: clamp(140px, 16vw, 200px);
-  max-width: 280px;
+  max-width: 360px;
 }
 
 .tmux-select:focus {

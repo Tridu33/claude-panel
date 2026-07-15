@@ -11,6 +11,7 @@ import asyncio
 import json
 import subprocess
 import os
+import stat
 import hmac
 import hashlib
 from typing import Optional
@@ -22,15 +23,14 @@ from dotenv import load_dotenv
 # 加载环境变量
 load_dotenv()
 
-# 确保 tmux 使用与登录 shell 一致的 socket 目录。
-# .bashrc / .zshrc 中设置了 TMUX_TMPDIR="$HOME/.tmux",tmux 的 socket 落在
-# ~/.tmux/tmux-<uid>/default。但后端常由非交互式进程(systemd / 直连 uvicorn)启动,
-# 不会 source 这些文件,导致 tmux list-sessions 连到默认 /tmp/tmux-<uid>/default
-# (空 socket)而看不到 main/tmp 等真实会话。这里在缺失时补回该变量。
-if not os.environ.get("TMUX_TMPDIR"):
-    _tmux_tmp_dir = os.path.join(os.path.expanduser("~"), ".tmux")
-    if os.path.isdir(_tmux_tmp_dir):
-        os.environ["TMUX_TMPDIR"] = _tmux_tmp_dir
+# tmux 兼容:用户的 .bashrc/.zshrc 通常会 export TMUX_TMPDIR="$HOME/.tmux",
+# 让 socket 持久化。但 systemd / uvicorn 子进程不 source 这些 rc,
+# 会回落到默认 /tmp,在/tmp 仍以 tmpfs 挂载的机器上 socket 找得到,
+# 一旦 /tmp 是磁盘(本机)或被定时清理,用户 SSH 启动的 tmux 就探测不到。
+#
+# 这里不强行覆盖 TMUX_TMPDIR — 保留系统默认行为,把所有 socket 目录
+# 的枚举逻辑统一在 TmuxManager.list_sessions() 里完成。
+# (原"模块加载期检测并改写 env"的方案会在 socket 还没就绪时误判。)
 
 app = FastAPI(title="Claude控制面板", version="1.0.0")
 
@@ -195,36 +195,139 @@ state = KeyboardState()
 # ── Tmux 会话管理 ──────────────────────────────────────────────
 class TmuxManager:
     """Tmux 会话管理器"""
-    
+
     @staticmethod
-    def list_sessions() -> list[dict]:
-        """列出所有活跃的 tmux 会话"""
+    def _is_socket(path: str) -> bool:
+        """判断路径是否是一个 Unix domain socket 文件"""
+        try:
+            st = os.stat(path)
+        except (OSError, FileNotFoundError):
+            return False
+        return stat.S_ISSOCK(st.st_mode)
+
+    @staticmethod
+    def _socket_dirs() -> list[str]:
+        """枚举所有可能存在 tmux socket 的父目录(不含 UID 子目录)"""
+        home = os.path.expanduser("~")
+        candidates = [
+            os.path.join(home, ".tmux"),
+            "/tmp",
+        ]
+        # 如果用户/上游工具额外设置了 TMUX_TMPDIR,也加入候选
+        extra = os.environ.get("TMUX_TMPDIR")
+        if extra and extra not in candidates:
+            candidates.insert(0, extra)
+        return candidates
+
+    @staticmethod
+    def _run_tmux_list(env_override: Optional[dict] = None) -> list[dict]:
+        """执行 tmux list-sessions 并解析结果"""
+        env = os.environ.copy()
+        if env_override:
+            env.update(env_override)
         try:
             result = subprocess.run(
                 ['tmux', 'list-sessions', '-F', '#{session_name}:#{session_path}'],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
+                env=env,
             )
-            
             if result.returncode != 0:
                 return []
-            
             sessions = []
             for line in result.stdout.strip().split('\n'):
                 if line.strip():
                     parts = line.split(':', 1)
                     session_name = parts[0]
                     session_path = parts[1] if len(parts) > 1 else ''
-                    sessions.append({
-                        'name': session_name,
-                        'path': session_path
-                    })
-            
+                    sessions.append({'name': session_name, 'path': session_path})
             return sessions
         except Exception as e:
             print(f"列出 tmux 会话失败: {e}")
             return []
+
+    @staticmethod
+    def _list_sessions_from(parent_dir: str) -> list[dict]:
+        """在 parent_dir/tmux-<uid>/ 下扫描所有 socket,并尝试列出每个 socket 的会话
+
+        同时兼容 'default' 命名 socket 和 `tmux -L name` 自定义命名 socket。
+        这样既覆盖 SSH 启动的默认 tmux,也覆盖手工指定 -L 的 tmux,
+        还能识别那些使用 ~/.tmux/ 持久化目录的会话 ——
+        这是 systemd 服务下不 source 用户 shell rc 时漏掉会话的根因。
+        """
+        uid = os.getuid()
+        sock_dir = os.path.join(parent_dir, f"tmux-{uid}")
+        if not os.path.isdir(sock_dir):
+            return []
+
+        # 第一遍:文件系统中真正的 socket 文件
+        socket_names: list[str] = []
+        try:
+            for name in os.listdir(sock_dir):
+                if TmuxManager._is_socket(os.path.join(sock_dir, name)):
+                    socket_names.append(name)
+        except Exception as e:
+            print(f"枚举 socket 目录失败 {sock_dir}: {e}")
+            return []
+
+        sessions: list[dict] = []
+        seen: set[str] = set()
+        for name in socket_names:
+            env = os.environ.copy()
+            env["TMUX_TMPDIR"] = parent_dir
+            try:
+                result = subprocess.run(
+                    ['tmux', '-L', name, 'list-sessions', '-F', '#{session_name}:#{session_path}'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    env=env,
+                )
+            except Exception as e:
+                print(f"读取 socket {name} 失败: {e}")
+                continue
+            if result.returncode != 0:
+                # 可能是陈旧 socket(进程死后残留),跳过
+                if result.stderr:
+                    print(f"socket {name} 已不可用: {result.stderr.strip()}")
+                continue
+            for line in result.stdout.strip().split('\n'):
+                if not line.strip():
+                    continue
+                parts = line.split(':', 1)
+                sess_name = parts[0]
+                if sess_name in seen:
+                    continue
+                seen.add(sess_name)
+                sessions.append({
+                    'name': sess_name,
+                    'path': parts[1] if len(parts) > 1 else '',
+                })
+        return sessions
+
+    @staticmethod
+    def list_sessions() -> list[dict]:
+        """列出所有活跃的 tmux 会话
+
+        策略:扫描 ~/.tmux/tmux-<uid>/ 与 /tmp/tmux-<uid>/ 下的每一个
+        Unix domain socket(不只 'default'),逐一用 `tmux -L <name>` 列出
+        其中的会话。systemd 启动的服务不继承用户 shell 的 TMUX_TMPDIR,
+        这种实现能同时找到 default socket 与自定义 -L 的 socket,
+        跨 reboot 后只要用户 SSH 启动过 tmux 服务就能枚举到。
+        """
+        all_sessions: list[dict] = []
+        seen: set[str] = set()
+        for parent in TmuxManager._socket_dirs():
+            for s in TmuxManager._list_sessions_from(parent):
+                if s['name'] in seen:
+                    continue
+                seen.add(s['name'])
+                all_sessions.append(s)
+        if not all_sessions:
+            print(f"[tmux] 未发现活跃会话。已扫描目录: "
+                  f"{[os.path.join(p, f'tmux-{os.getuid()}') for p in TmuxManager._socket_dirs()]}")
+        return all_sessions
     
     @staticmethod
     def path_to_session_name(path: str) -> str:
@@ -895,6 +998,30 @@ async def delete_tmux_session(body: dict):
             {"error": f"删除会话失败: {str(e)}"},
             status_code=500
         )
+
+# ── Debug 接口 ────────────────────────────────────────────────
+@app.get("/api/debug")
+async def debug_info():
+    """调试信息: 检查 tmux 环境"""
+    info = {
+        "user": os.environ.get("USER", "unknown"),
+        "cwd": os.getcwd(),
+        "tmux_tmpdir": os.environ.get("TMUX_TMPDIR", "(not set)"),
+        "home": os.path.expanduser("~"),
+        "tmux_dir_exists": os.path.isdir(os.path.join(os.path.expanduser("~"), ".tmux")),
+        "uid": os.getuid(),
+    }
+    # 枚举两边的 socket 目录
+    uid = os.getuid()
+    tmux_socket_dir = os.path.join(os.path.expanduser("~"), ".tmux", f"tmux-{uid}")
+    info["socket_dir_exists"] = os.path.isdir(tmux_socket_dir)
+    info["socket_files"] = os.listdir(tmux_socket_dir) if os.path.isdir(tmux_socket_dir) else []
+    tmp_socket_dir = os.path.join("/tmp", f"tmux-{uid}")
+    info["tmp_socket_dir_exists"] = os.path.isdir(tmp_socket_dir)
+    info["tmp_socket_files"] = os.listdir(tmp_socket_dir) if os.path.isdir(tmp_socket_dir) else []
+    # 走新的 list_sessions() 路径(枚举所有 socket)
+    info["discovered_sessions"] = tmux_manager.list_sessions()
+    return info
 
 @app.websocket("/ws/ssh")
 async def ssh_websocket(ws: WebSocket):
