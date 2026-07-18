@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 10016,
+    allowedHosts: ['tools.slamkun.top', '.slamkun.top'],
     proxy: {
       '/api': {
         target: 'http://localhost:10015',
