@@ -24,7 +24,7 @@ npm install
 npm run dev
 ```
 
-开发服务器将在 `http://localhost:10016` 启动，并自动代理 API 请求到后端服务器（`http://localhost:10015`）。
+开发服务器将在 `http://localhost:10014` 启动，并自动代理 API 请求到后端服务器（`http://localhost:10016`）。
 
 ### 2.1 同时启动后端和前端（推荐）
 
@@ -33,8 +33,8 @@ npm run dev:all
 ```
 
 这会同时启动：
-- 后端服务：`http://localhost:10015`
-- 前端服务：`http://localhost:10016`
+- 后端服务：`http://localhost:10016`
+- 前端服务：`http://localhost:10014`
 
 ### 3. 构建生产版本
 
@@ -85,10 +85,10 @@ frontend/
 
 开发模式下，Vite 会自动代理以下路径到后端服务器：
 
-- `/api` → `http://localhost:10015`
-- `/ws` → `ws://localhost:10015`
+- `/api` → `http://localhost:10016`
+- `/ws` → `ws://localhost:10016`
 
-确保后端服务器在 10015 端口运行。
+确保后端服务器在 10016 端口运行。
 
 ### SSH 终端
 

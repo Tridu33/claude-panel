@@ -140,6 +140,10 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+# Runtime error/output logs (Windows backend.err / .out etc.)
+*.err
+*.out
+
 # Runtime data
 pids
 *.pid

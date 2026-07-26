@@ -9,7 +9,7 @@ User=tridu33
 Group=tridu33
 WorkingDirectory=/home/tridu33/githubSrc/claude-panel/frontend
 Environment=PATH=/home/tridu33/.nvm/versions/node/v22.22.3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ExecStart=/home/tridu33/.nvm/versions/node/v22.22.3/bin/node node_modules/.bin/vite --port 20004 --host 0.0.0.0
+ExecStart=/home/tridu33/.nvm/versions/node/v22.22.3/bin/node node_modules/.bin/vite --port 10014 --host 0.0.0.0
 Restart=always
 RestartSec=5
 StandardOutput=journal

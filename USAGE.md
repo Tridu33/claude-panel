@@ -27,11 +27,11 @@ pip install -r requirements.txt
 python main.py
 ```
 
-服务将在 `http://localhost:10015` 启动
+服务将在 `http://localhost:10016` 启动
 
 ### 3. 访问控制面板
 
-打开浏览器访问: `http://localhost:10015`
+打开浏览器访问: `http://localhost:10014`
 
 ## 功能说明
 
@@ -68,7 +68,7 @@ python main.py
 
 ### 方式一: 使用静态页面(基础版)
 
-1. 访问 `http://localhost:10015`
+1. 访问 `http://localhost:10014`
 2. 点击右上角 **SSH** 按钮
 3. 将跳转到 SSH 终端页面
 
@@ -99,7 +99,7 @@ python main.py
 #### 1. 连接 SSH
 
 ```bash
-curl -X POST http://localhost:10015/api/ssh/connect \
+curl -X POST http://localhost:10016/api/ssh/connect \
   -H "Content-Type: application/json" \
   -d '{
     "hostname": "192.168.1.100",
@@ -112,7 +112,7 @@ curl -X POST http://localhost:10015/api/ssh/connect \
 #### 2. 执行命令
 
 ```bash
-curl -X POST http://localhost:10015/api/ssh/command \
+curl -X POST http://localhost:10016/api/ssh/command \
   -H "Content-Type: application/json" \
   -d '{
     "command": "ls -la"
@@ -122,13 +122,13 @@ curl -X POST http://localhost:10015/api/ssh/command \
 #### 3. 断开连接
 
 ```bash
-curl -X POST http://localhost:10015/api/ssh/disconnect
+curl -X POST http://localhost:10016/api/ssh/disconnect
 ```
 
 #### 4. 查看状态
 
 ```bash
-curl http://localhost:10015/api/ssh/status
+curl http://localhost:10016/api/ssh/status
 ```
 
 ## Vue 前端开发
@@ -146,7 +146,7 @@ npm install
 npm run dev
 ```
 
-开发服务器将在 `http://localhost:3000` 启动
+开发服务器将在 `http://localhost:10014` 启动
 
 ### 功能特性
 
@@ -258,7 +258,7 @@ pip install paramiko
 **解决方案**:
 ```bash
 # 查找占用端口的进程
-lsof -ti:10015
+lsof -ti:10016
 
 # 杀掉进程
 kill -9 <PID>
@@ -274,7 +274,7 @@ python main.py
 **解决方案**:
 1. 确保后端服务正在运行
 2. 检查浏览器控制台是否有错误
-3. 确认防火墙没有阻止 10015 端口
+3. 确认防火墙没有阻止 10014(前端)和 10016(后端)端口
 4. 如果使用 HTTPS,WebSocket 应使用 `wss://`
 
 ### Q4: SSH 连接失败
@@ -292,7 +292,7 @@ python main.py
 **问题**: Vue 开发服务器代理失败
 
 **解决方案**:
-1. 确保后端在 10015 端口运行
+1. 确保后端在 10016 端口运行
 2. 检查 `frontend/vite.config.js` 中的代理配置
 3. 重启前端开发服务器
 
@@ -309,7 +309,7 @@ python main.py
 
 - 查看 `CHANGELOG.md` 了解版本更新
 - 查看 `README.md` 了解项目概况
-- 访问 `http://localhost:10015/docs` 查看完整 API 文档
+- 访问 `http://localhost:10016/docs` 查看完整 API 文档
 
 ## 许可证
 

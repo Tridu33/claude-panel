@@ -26,7 +26,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-服务将在 `http://localhost:10015` 启动。
+服务将在 `http://localhost:10016` 启动。
 
 ### 3. 启动前端（开发模式）
 
@@ -36,7 +36,7 @@ npm install
 npm run dev
 ```
 
-前端将在 `http://localhost:10016` 启动，并自动代理 API 请求到后端。
+前端将在 `http://localhost:10014` 启动，并自动代理 API 请求到后端。
 
 ## 环境配置（可选）
 
@@ -126,7 +126,7 @@ claude-panel/
 
 ## API 文档
 
-启动服务后访问 `http://localhost:10015/docs` 查看完整的 API 文档。
+启动服务后访问 `http://localhost:10016/docs` 查看完整的 API 文档。
 
 ## 技术栈
 

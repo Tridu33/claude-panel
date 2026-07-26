@@ -227,8 +227,10 @@ class TmuxManager:
             env.update(env_override)
         try:
             result = subprocess.run(
-                ['tmux', 'list-sessions', '-F', '#{session_name}:#{session_path}'],
+                ['psmux', 'list-sessions', '-F', '#{session_name}:#{session_path}'],
                 capture_output=True,
+                encoding='utf-8',
+                errors='replace',
                 text=True,
                 timeout=5,
                 env=env,
@@ -244,7 +246,7 @@ class TmuxManager:
                     sessions.append({'name': session_name, 'path': session_path})
             return sessions
         except Exception as e:
-            print(f"列出 tmux 会话失败: {e}")
+            print(f"列出 psmux 会话失败: {e}")
             return []
 
     @staticmethod
@@ -278,7 +280,7 @@ class TmuxManager:
             env["TMUX_TMPDIR"] = parent_dir
             try:
                 result = subprocess.run(
-                    ['tmux', '-L', name, 'list-sessions', '-F', '#{session_name}:#{session_path}'],
+                    ['psmux', '-L', name, 'list-sessions', '-F', '#{session_name}:#{session_path}'],
                     capture_output=True,
                     text=True,
                     timeout=5,
@@ -308,16 +310,34 @@ class TmuxManager:
 
     @staticmethod
     def list_sessions() -> list[dict]:
-        """列出所有活跃的 tmux 会话
+        """列出所有活跃的 tmux/psmux 会话
 
         策略:扫描 ~/.tmux/tmux-<uid>/ 与 /tmp/tmux-<uid>/ 下的每一个
         Unix domain socket(不只 'default'),逐一用 `tmux -L <name>` 列出
         其中的会话。systemd 启动的服务不继承用户 shell 的 TMUX_TMPDIR,
         这种实现能同时找到 default socket 与自定义 -L 的 socket,
         跨 reboot 后只要用户 SSH 启动过 tmux 服务就能枚举到。
+
+        Windows 下 psmux 不使用 Unix domain socket,直接走默认 socket
+        列出,绕过 os.getuid() 调用避免 AttributeError。
         """
+        # Windows 路径:os.getuid 不存在,跳过 socket 目录扫描
+        if not hasattr(os, "getuid"):
+            sessions = TmuxManager._run_tmux_list()
+            # 按 name 去重,保留首次出现的顺序
+            seen: set[str] = set()
+            unique: list[dict] = []
+            for s in sessions:
+                if s["name"] in seen:
+                    continue
+                seen.add(s["name"])
+                unique.append(s)
+            if not unique:
+                print("[psmux] 未发现活跃会话(Windows,使用 psmux 默认 socket)。")
+            return unique
+
         all_sessions: list[dict] = []
-        seen: set[str] = set()
+        seen = set()
         for parent in TmuxManager._socket_dirs():
             for s in TmuxManager._list_sessions_from(parent):
                 if s['name'] in seen:
@@ -377,7 +397,7 @@ class TmuxManager:
         try:
             # 检查会话是否已存在
             result = subprocess.run(
-                ['tmux', 'has-session', '-t', session_name],
+                ['psmux', 'has-session', '-t', session_name],
                 capture_output=True,
                 timeout=3
             )
@@ -395,7 +415,7 @@ class TmuxManager:
             
             # 创建新会话（分离模式）
             subprocess.run(
-                ['tmux', 'new-session', '-d', '-s', session_name, '-c', path],
+                ['psmux', 'new-session', '-d', '-s', session_name, '-c', path],
                 capture_output=True,
                 timeout=10
             )
@@ -403,7 +423,7 @@ class TmuxManager:
             # 启动 pipe-pane 实时导出日志
             pipe_command = f"cat >> {log_file}"
             subprocess.run(
-                ['tmux', 'pipe-pane', '-t', session_name, pipe_command],
+                ['psmux', 'pipe-pane', '-t', session_name, pipe_command],
                 capture_output=True,
                 timeout=5
             )
@@ -411,7 +431,7 @@ class TmuxManager:
             # 发送 Claude 命令
             claude_command = f"cd {path} && claude\n"
             subprocess.run(
-                ['tmux', 'send-keys', '-t', session_name, claude_command],
+                ['psmux', 'send-keys', '-t', session_name, claude_command],
                 capture_output=True,
                 timeout=5
             )
@@ -437,7 +457,7 @@ class TmuxManager:
         """附加到指定会话"""
         try:
             result = subprocess.run(
-                ['tmux', 'has-session', '-t', session_name],
+                ['psmux', 'has-session', '-t', session_name],
                 capture_output=True,
                 timeout=3
             )
@@ -594,16 +614,16 @@ async def root():
             <h1>🎹 Claude Panel</h1>
             <p>键盘控制面板 + SSH 终端</p>
             <div class="steps">
-                <h3 style="color: #e2e8f0; margin-bottom: 1rem;">📦 启动前端开发服务器:</h3>
+                <h3 style="color: #e2e8f0; margin-bottom: 1rem;">🚀 服务已启动</h3>
                 <p style="color: #94a3b8; margin: 0.5rem 0;">
-                    <code>cd frontend && npm install && npm run dev</code>
+                    前端面板: <a href="http://localhost:10014" style="color: #10b981;">http://localhost:10014</a>
+                </p>
+                <p style="color: #94a3b8; margin: 0.5rem 0;">
+                    后端 API: <a href="http://localhost:10016/docs" style="color: #10b981;">http://localhost:10016/docs</a>
                 </p>
                 <p style="color: #64748b; font-size: 0.9rem; margin-top: 1rem;">
-                    前端将在 <code>http://localhost:3000</code> 运行
+                    💡 快速启动: 双击 <code>start.bat</code> | 安装开机启动: <code>install_startup.bat</code>
                 </p>
-            </div>
-            <div style="margin-top: 2rem; color: #475569; font-size: 0.9rem;">
-                <p>API 文档: <a href="/docs" style="color: #10b981;">http://localhost:10015/docs</a></p>
             </div>
         </div>
     </body>
@@ -835,7 +855,7 @@ async def get_tmux_logs(session: str, lines: int = 200):
     try:
         # 检查会话是否存在
         result = subprocess.run(
-            ['tmux', 'has-session', '-t', session],
+            ['psmux', 'has-session', '-t', session],
             capture_output=True,
             timeout=3
         )
@@ -848,8 +868,10 @@ async def get_tmux_logs(session: str, lines: int = 200):
         
         # 使用 capture-pane 获取会话内容
         result = subprocess.run(
-            ['tmux', 'capture-pane', '-t', session, '-p', '-S', f'-{lines}'],
+            ['psmux', 'capture-pane', '-t', session, '-p', '-S', f'-{lines}'],
             capture_output=True,
+            encoding='utf-8',
+            errors='replace',
             text=True,
             timeout=5
         )
@@ -901,8 +923,10 @@ async def send_tmux_command(body: dict):
         # 使用 send-keys 发送命令
         print(f"[Backend] 执行: tmux send-keys -t {session} {command}")
         result1 = subprocess.run(
-            ['tmux', 'send-keys', '-t', session, command],
+            ['psmux', 'send-keys', '-t', session, command],
             capture_output=True,
+            encoding='utf-8',
+            errors='replace',
             text=True,
             timeout=5
         )
@@ -915,8 +939,10 @@ async def send_tmux_command(body: dict):
         # 发送 Enter 键
         print(f"[Backend] 执行: tmux send-keys -t {session} Enter")
         result2 = subprocess.run(
-            ['tmux', 'send-keys', '-t', session, 'Enter'],
+            ['psmux', 'send-keys', '-t', session, 'Enter'],
             capture_output=True,
+            encoding='utf-8',
+            errors='replace',
             text=True,
             timeout=5
         )
@@ -961,7 +987,7 @@ async def delete_tmux_session(body: dict):
     try:
         # 检查会话是否存在
         result = subprocess.run(
-            ['tmux', 'has-session', '-t', session],
+            ['psmux', 'has-session', '-t', session],
             capture_output=True,
             timeout=3
         )
@@ -974,14 +1000,14 @@ async def delete_tmux_session(body: dict):
         
         # 停止 pipe-pane (如果有的话)
         subprocess.run(
-            ['tmux', 'pipe-pane', '-t', session],
+            ['psmux', 'pipe-pane', '-t', session],
             capture_output=True,
             timeout=3
         )
         
         # 删除会话
         subprocess.run(
-            ['tmux', 'kill-session', '-t', session],
+            ['psmux', 'kill-session', '-t', session],
             capture_output=True,
             timeout=5
         )
@@ -1130,4 +1156,4 @@ async def websocket_endpoint(ws: WebSocket):
 
 # ── 启动入口 ─────────────────────────────────────────────────
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=10015, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=10016, reload=True)
