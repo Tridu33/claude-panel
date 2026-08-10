@@ -1,19 +1,15 @@
 [Unit]
-Description=Claude Panel - FastAPI Control Panel
-After=network-online.target
-Wants=network-online.target
+Description=Claude Panel FastAPI Server (port 10015)
+After=network.target
 
 [Service]
 Type=simple
-User=tridu33
-Group=tridu33
-WorkingDirectory=/home/tridu33/githubSrc/claude-panel
-Environment=PATH=/home/tridu33/globalVenv4uv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ExecStart=/home/tridu33/globalVenv4uv/bin/python3 main.py
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
+User=root
+WorkingDirectory=/tridu33/tmux-coder-panel
+ExecStart=/usr/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 10015 --workers 1
+Restart=on-failure
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target

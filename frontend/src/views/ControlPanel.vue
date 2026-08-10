@@ -16,27 +16,6 @@
             </option>
           </select>
         </div>
-        <button @click="showCreateSessionDialog" class="btn-new-session" title="新增 Session">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          <span class="btn-label">新增</span>
-        </button>
-        <button
-          @click="showDeleteConfirm"
-          :disabled="!currentSessionName"
-          class="btn-delete-session-header"
-          title="删除当前会话"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            <line x1="10" y1="11" x2="10" y2="17"/>
-            <line x1="14" y1="11" x2="14" y2="17"/>
-          </svg>
-          <span class="btn-label">删除</span>
-        </button>
       </div>
     </Teleport>
 
@@ -201,8 +180,22 @@
           </button>
         </div>
 
-        <!-- 虚拟键盘 -->
-        <VirtualKeyboard v-model="commandInput" @send="sendCommand" />
+        <!-- 虚拟键盘（默认折叠） -->
+        <div class="virtual-keyboard-section">
+          <div class="virtual-keyboard-header" @click="keyboardExpanded = !keyboardExpanded">
+            <span class="vkb-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/>
+              </svg>
+              虚拟键盘
+            </span>
+            <span class="vkb-toggle" :title="keyboardExpanded ? '收起键盘' : '展开键盘'">
+              {{ keyboardExpanded ? '收起 ▲' : '展开 ▼' }}
+            </span>
+          </div>
+          <VirtualKeyboard v-show="keyboardExpanded" v-model="commandInput" @send="sendCommand" />
+        </div>
 
         <!-- 事件日志 -->
         <div class="log-box">
@@ -323,6 +316,7 @@ export default {
     const sendingCommand = ref(false)
     
     // 虚拟键盘相关
+    const keyboardExpanded = ref(false)  // 默认折叠，点击标题栏展开
     const shiftActive = ref(false)
     const ctrlActive = ref(false)
     const altActive = ref(false)
@@ -496,7 +490,9 @@ export default {
       
       loadingLogs.value = true
       try {
-        const response = await fetch(`/api/tmux/logs?session=${encodeURIComponent(currentSessionName.value)}&lines=${logLines.value}`)
+        const response = await fetch(`/api/tmux/logs?session=${encodeURIComponent(currentSessionName.value)}&lines=${logLines.value}`, {
+          credentials: 'include'
+        })
         const data = await response.json()
         
         if (data.success) {
@@ -558,21 +554,29 @@ export default {
       sendingCommand.value = true
       try {
         console.log('[ControlPanel] 发送 POST 请求到 /api/tmux/send-command')
-        
+
         const response = await fetch('/api/tmux/send-command', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             session: currentSessionName.value,
             command: command  // 直接发送输入框内容，包含数字和回车
           })
         })
-        
+
         console.log('[ControlPanel] 收到响应，状态:', response.status)
-        
+
+        // 检查认证状态
+        if (response.status === 401) {
+          console.error('[ControlPanel] 认证失败，需要重新登录')
+          alert('登录已过期，请刷新页面重新登录')
+          return
+        }
+
         const data = await response.json()
         console.log('[ControlPanel] 响应数据:', data)
-        
+
         if (data.success) {
           console.log('[ControlPanel] 命令发送成功')
           // 清空输入框
@@ -580,12 +584,17 @@ export default {
           // 立即刷新日志
           await loadSessionLogs()
         } else {
-          console.error('[ControlPanel] 命令发送失败:', data.error)
-          alert('发送命令失败: ' + (data.error || '未知错误'))
+          console.error('[ControlPanel] 命令发送失败:', data.error || data.detail)
+          alert('发送命令失败: ' + (data.error || data.detail || '未知错误'))
         }
       } catch (error) {
         console.error('[ControlPanel] 请求异常:', error)
-        alert('发送命令失败: ' + error.message)
+        // 提供更有帮助的错误信息
+        if (error.message === 'Failed to fetch') {
+          alert('发送命令失败: 无法连接到服务器，请检查网络连接或刷新页面重试')
+        } else {
+          alert('发送命令失败: ' + error.message)
+        }
       } finally {
         sendingCommand.value = false
         console.log('[ControlPanel] sendCommand 执行完毕')
@@ -610,6 +619,7 @@ export default {
       try {
         const response = await fetch('/api/tmux/delete-session', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             session: currentSessionName.value
@@ -647,7 +657,9 @@ export default {
     // Tmux 相关方法
     const loadTmuxSessions = async () => {
       try {
-        const response = await fetch('/api/tmux/sessions')
+        const response = await fetch('/api/tmux/sessions', {
+          credentials: 'include'
+        })
         const data = await response.json()
         if (data.success) {
           tmuxSessions.value = data.sessions
@@ -705,6 +717,7 @@ export default {
       try {
         const response = await fetch('/api/tmux/create', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path })
         })
@@ -738,6 +751,7 @@ export default {
       try {
         const response = await fetch('/api/tmux/attach', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_name: currentMode.value })
         })
@@ -799,6 +813,7 @@ export default {
       terminalContent,
       commandInput,
       sendingCommand,
+      keyboardExpanded,
       shiftActive,
       ctrlActive,
       altActive,
@@ -837,12 +852,12 @@ export default {
    ================================================================ */
 .page {
   width: 100%;
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
-  padding: clamp(0.5rem, 1.5vw, 1rem);
+  padding: clamp(0.25rem, 0.75vw, 0.75rem);
   display: flex;
   flex-direction: column;
-  gap: clamp(0.5rem, 1.2vw, 1rem);
+  gap: clamp(0.4rem, 1vw, 0.75rem);
 }
 
 /* ---- Teleport 到 #nav-controls 的 WS / tmux 控件 ---- */
@@ -892,48 +907,6 @@ export default {
 .tmux-select:focus {
   outline: none;
   border-color: white;
-}
-
-.btn-new-session,
-.btn-delete-session-header {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.4rem 0.75rem;
-  border: none;
-  border-radius: 8px;
-  font-size: clamp(0.7rem, 0.9vw, 0.85rem);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.btn-new-session {
-  background: rgba(16, 185, 129, 0.9);
-  color: white;
-  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
-}
-
-.btn-new-session:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.4);
-}
-
-.btn-delete-session-header {
-  background: rgba(239, 68, 68, 0.9);
-  color: white;
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
-}
-
-.btn-delete-session-header:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4);
-}
-
-.btn-delete-session-header:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ---- 键盘机身 ---- */
@@ -1148,6 +1121,43 @@ export default {
   flex-direction: column;
   gap: clamp(0.5rem, 1.2vw, 1rem);
   width: 100%;
+}
+
+/* ---- 虚拟键盘折叠栏 ---- */
+.virtual-keyboard-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.virtual-keyboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+  color: white;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.2s;
+}
+
+.virtual-keyboard-header:hover {
+  opacity: 0.9;
+}
+
+.vkb-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: clamp(0.75rem, 1vw, 0.9rem);
+  font-weight: 600;
+}
+
+.vkb-toggle {
+  font-size: clamp(0.7rem, 0.9vw, 0.8rem);
+  opacity: 0.9;
 }
 
 /* ---- 命令输入区 ---- */
@@ -1767,15 +1777,6 @@ export default {
   .tmux-select {
     min-width: 120px;
     font-size: 0.75rem;
-  }
-
-  .btn-label {
-    display: none;
-  }
-
-  .btn-new-session,
-  .btn-delete-session-header {
-    padding: 0.35rem 0.55rem;
   }
 
   .terminal-header {

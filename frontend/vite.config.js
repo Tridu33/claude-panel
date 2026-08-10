@@ -11,8 +11,8 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 10016,
-    allowedHosts: ['tools.slamkun.top', '.slamkun.top'],
+    port: 20016,
+    allowedHosts: ['tools.slamkun.top', '.slamkun.top', '47.86.215.76', 'localhost', '127.0.0.1'],
     proxy: {
       '/api': {
         target: 'http://localhost:10015',
@@ -28,5 +28,10 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  build: {
+    // 构建产物直接输出到 Python 包目录,wheel 天然包含前端静态资源
+    outDir: '../tmux_ai_coder_panel/frontend_dist',
+    emptyOutDir: true,
   }
 })

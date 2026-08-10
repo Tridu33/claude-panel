@@ -75,6 +75,8 @@ frontend/coverage
 # Production
 frontend/dist
 frontend/build
+# vite 构建直接输出到包目录(wheel 打包用)
+tmux_ai_coder_panel/frontend_dist/
 
 # Misc
 frontend/.DS_Store

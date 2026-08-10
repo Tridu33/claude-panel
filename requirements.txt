@@ -1,5 +1,4 @@
+# 开发环境依赖;安装请使用: pip install tmux-ai-coder-panel
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
-paramiko>=3.3.0
-websocket-client>=1.6.0
 python-dotenv>=1.0.0
