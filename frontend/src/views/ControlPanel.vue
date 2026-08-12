@@ -97,6 +97,8 @@
               v-model="commandInput"
               @keydown.ctrl.enter="sendCommand"
               @keydown.meta.enter="sendCommand"
+              @keydown.up="onTextareaArrow($event, 'up')"
+              @keydown.down="onTextareaArrow($event, 'down')"
               placeholder="输入命令...\n支持多行输入\nCtrl+Enter 或 ⌘+Enter 发送"
               class="command-textarea"
               rows="3"
@@ -314,6 +316,11 @@ export default {
     // 命令输入相关
     const commandInput = ref('')
     const sendingCommand = ref(false)
+    // 命令历史（按会话记录，上限 50 条）
+    const commandHistory = ref({})  // { session: [命令] }
+    const historySession = ref('')  // 当前翻历史所属的会话
+    const historyIndex = ref(-1)    // -1 = 未翻历史
+    const historyDraft = ref('')    // 开始翻历史时输入框的草稿
     
     // 虚拟键盘相关
     const keyboardExpanded = ref(false)  // 默认折叠，点击标题栏展开
@@ -476,7 +483,64 @@ export default {
     }
 
     const pressKey = (key) => {
+      // 上/下键：本地命令历史导航，不发往后端
+      if (key === 'up' || key === 'down') {
+        navigateHistory(key)
+        return
+      }
       sendWsCommand({ type: 'keypress', key })
+    }
+
+    // 命令历史导航：up 取上一条，down 取下一条
+    const navigateHistory = (direction) => {
+      const session = currentSessionName.value
+      if (!session) return
+      const history = commandHistory.value[session] || []
+      if (!history.length) return
+
+      // 切换会话后重置导航状态
+      if (historySession.value !== session) {
+        historySession.value = session
+        historyIndex.value = -1
+        historyDraft.value = ''
+      }
+
+      if (direction === 'up') {
+        // 首次按上键时保存当前草稿
+        if (historyIndex.value === -1) {
+          historyDraft.value = commandInput.value
+        }
+        if (historyIndex.value < history.length - 1) {
+          historyIndex.value += 1
+          commandInput.value = history[history.length - 1 - historyIndex.value]
+        }
+      } else if (direction === 'down') {
+        if (historyIndex.value === -1) return
+        historyIndex.value -= 1
+        // 回到最新位置时恢复草稿
+        commandInput.value = historyIndex.value === -1
+          ? historyDraft.value
+          : history[history.length - 1 - historyIndex.value]
+      }
+    }
+
+    // 输入框物理键盘：光标在第一行时 ↑ 翻历史，最后一行时 ↓ 翻历史
+    const onTextareaArrow = (event, direction) => {
+      const el = event.target
+      const val = commandInput.value
+      if (direction === 'up') {
+        const firstLineEnd = val.indexOf('\n')
+        if (firstLineEnd === -1 || el.selectionStart <= firstLineEnd) {
+          event.preventDefault()
+          navigateHistory('up')
+        }
+      } else {
+        const lastLineStart = val.lastIndexOf('\n')
+        if (lastLineStart === -1 || el.selectionEnd > lastLineStart) {
+          event.preventDefault()
+          navigateHistory('down')
+        }
+      }
     }
 
     const toggleAutoApprove = () => {
@@ -579,6 +643,20 @@ export default {
 
         if (data.success) {
           console.log('[ControlPanel] 命令发送成功')
+          // 记录命令历史（同会话内去重，最多 50 条）
+          const session = currentSessionName.value
+          if (!commandHistory.value[session]) {
+            commandHistory.value[session] = []
+          }
+          const hist = commandHistory.value[session]
+          if (hist[hist.length - 1] !== command) {
+            hist.push(command)
+          }
+          if (hist.length > 50) {
+            hist.shift()
+          }
+          historyIndex.value = -1
+          historyDraft.value = ''
           // 清空输入框
           commandInput.value = ''
           // 立即刷新日志
@@ -829,6 +907,8 @@ export default {
       pathInput,
       getLedClass,
       pressKey,
+      navigateHistory,
+      onTextareaArrow,
       toggleAutoApprove,
       changeMode,
       clearLogs,
