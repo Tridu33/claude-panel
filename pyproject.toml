@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tmux-ai-coder-panel"
+description = "Claude 键盘控制面板:单端口整体服务(FastAPI + Vue3 + tmux)"
+readme = "README.md"
+requires-python = ">=3.9"
+dynamic = ["version"]
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+tmux-ai-coder-panel = "tmux_ai_coder_panel.cli:main"
+
+[tool.hatch.version]
+path = "tmux_ai_coder_panel/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tmux_ai_coder_panel"]
+# force-include: frontend_dist 被 gitignore,必须强制打进 wheel
+force-include = { "tmux_ai_coder_panel/frontend_dist" = "tmux_ai_coder_panel/frontend_dist" }
+
+[tool.hatch.build.targets.sdist]
+artifacts = ["tmux_ai_coder_panel/frontend_dist/**"]

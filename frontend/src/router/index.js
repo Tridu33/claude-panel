@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import ControlPanel from '../views/ControlPanel.vue'
-import SSHTerminal from '../views/SSHTerminal.vue'
 import Login from '../views/Login.vue'
 import { checkAuth } from '../auth'
 
@@ -15,11 +14,6 @@ const routes = [
     path: '/',
     name: 'ControlPanel',
     component: ControlPanel,
-  },
-  {
-    path: '/ssh',
-    name: 'SSHTerminal',
-    component: SSHTerminal,
   },
 ]
 
