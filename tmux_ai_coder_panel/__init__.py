@@ -1,6 +1,6 @@
 """tmux-ai-coder-panel:Claude 键盘控制面板,单端口整体服务(FastAPI + Vue3 + tmux)。"""
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 __all__ = ["app", "__version__"]
 

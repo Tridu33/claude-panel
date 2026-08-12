@@ -14,6 +14,7 @@ import os
 import stat
 import hmac
 import hashlib
+import platform
 from typing import Optional
 from datetime import datetime
 import uvicorn
@@ -197,6 +198,8 @@ state = KeyboardState()
 class TmuxManager:
     """Tmux 会话管理器"""
 
+    command = "psmux" if os.name == "nt" else "tmux"
+
     @staticmethod
     def _is_socket(path: str) -> bool:
         """判断路径是否是一个 Unix domain socket 文件"""
@@ -228,7 +231,7 @@ class TmuxManager:
             env.update(env_override)
         try:
             result = subprocess.run(
-                ['tmux', 'list-sessions', '-F', '#{session_name}:#{session_path}'],
+                [TmuxManager.command, 'list-sessions', '-F', '#{session_name}:#{session_path}'],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -245,12 +248,14 @@ class TmuxManager:
                     sessions.append({'name': session_name, 'path': session_path})
             return sessions
         except Exception as e:
-            print(f"列出 tmux 会话失败: {e}")
+            print(f"列出 {TmuxManager.command} 会话失败: {e}")
             return []
 
     @staticmethod
     def _socket_names_in(parent_dir: str) -> list[str]:
         """列出 parent_dir/tmux-<uid>/ 下的 socket 文件名"""
+        if os.name == "nt":
+            return []
         sock_dir = os.path.join(parent_dir, f"tmux-{os.getuid()}")
         if not os.path.isdir(sock_dir):
             return []
@@ -272,7 +277,7 @@ class TmuxManager:
         # 1) 默认环境(裸命令)
         try:
             r = subprocess.run(
-                ['tmux', 'has-session', '-t', session_name],
+                [TmuxManager.command, 'has-session', '-t', session_name],
                 capture_output=True,
                 timeout=3,
             )
@@ -287,7 +292,7 @@ class TmuxManager:
                 env["TMUX_TMPDIR"] = parent
                 try:
                     r = subprocess.run(
-                        ['tmux', '-L', name, 'has-session', '-t', session_name],
+                        [TmuxManager.command, '-L', name, 'has-session', '-t', session_name],
                         capture_output=True,
                         timeout=3,
                         env=env,
@@ -303,11 +308,11 @@ class TmuxManager:
         """为指定会话构造 tmux 命令与环境;解析失败时回退裸命令(自然报错)。"""
         resolved = TmuxManager._resolve_socket(session_name)
         if resolved is None:
-            return ['tmux'] + extra_args, os.environ.copy()
+            return [TmuxManager.command] + extra_args, os.environ.copy()
         parent, name = resolved
         env = os.environ.copy()
         env["TMUX_TMPDIR"] = parent
-        return ['tmux', '-L', name] + extra_args, env
+        return [TmuxManager.command, '-L', name] + extra_args, env
 
     @staticmethod
     def _list_sessions_from(parent_dir: str) -> list[dict]:
@@ -335,7 +340,7 @@ class TmuxManager:
             env["TMUX_TMPDIR"] = parent_dir
             try:
                 result = subprocess.run(
-                    ['tmux', '-L', name, 'list-sessions', '-F', '#{session_name}:#{session_path}'],
+                    [TmuxManager.command, '-L', name, 'list-sessions', '-F', '#{session_name}:#{session_path}'],
                     capture_output=True,
                     text=True,
                     timeout=5,
@@ -373,6 +378,9 @@ class TmuxManager:
         这种实现能同时找到 default socket 与自定义 -L 的 socket,
         跨 reboot 后只要用户 SSH 启动过 tmux 服务就能枚举到。
         """
+        if os.name == "nt":
+            return TmuxManager._run_tmux_list()
+
         all_sessions: list[dict] = []
         seen: set[str] = set()
         for parent in TmuxManager._socket_dirs():
@@ -390,9 +398,13 @@ class TmuxManager:
     def path_to_session_name(path: str) -> str:
         """将路径转换为反向域名会话名称"""
         # 移除末尾的斜杠
-        path = path.rstrip('/')
-        # 分割路径
-        parts = path.split('/')
+        path = path.rstrip('/\\')
+        # 同时支持 POSIX、WSL 和 Windows 路径
+        normalized = path.replace('\\', '/')
+        drive, normalized = os.path.splitdrive(normalized)
+        parts = normalized.split('/')
+        if drive:
+            parts.append(drive.rstrip(':'))
         # 过滤空字符串并反转
         parts = [p for p in parts if p]
         parts.reverse()
@@ -403,11 +415,12 @@ class TmuxManager:
     def validate_path(path: str) -> tuple[bool, str]:
         """验证路径是否合法"""
         # 检查是否以 / 开头
-        if not path.startswith('/'):
+        is_absolute = os.path.isabs(path) or (len(path) >= 3 and path[1] == ':' and path[2] in '/\\')
+        if not is_absolute:
             return False, "路径必须是绝对路径"
         
         # 检查是否是根路径
-        if path == '/':
+        if os.path.abspath(path) == os.path.abspath(os.path.sep):
             return False, "不允许使用根路径 /"
         
         # 检查路径是否存在
@@ -449,23 +462,23 @@ class TmuxManager:
             
             # 创建新会话（分离模式）
             subprocess.run(
-                ['tmux', 'new-session', '-d', '-s', session_name, '-c', path],
+                [TmuxManager.command, 'new-session', '-d', '-s', session_name, '-c', path],
                 capture_output=True,
                 timeout=10
             )
             
             # 启动 pipe-pane 实时导出日志
-            pipe_command = f"cat >> {log_file}"
+            pipe_command = f'type >> "{log_file}"' if os.name == "nt" else f'cat >> "{log_file}"'
             subprocess.run(
-                ['tmux', 'pipe-pane', '-t', session_name, pipe_command],
+                [TmuxManager.command, 'pipe-pane', '-t', session_name, pipe_command],
                 capture_output=True,
                 timeout=5
             )
             
             # 发送 Claude 命令
-            claude_command = f"cd {path} && claude\n"
+            claude_command = f'cd /d "{path}" && claude\n' if os.name == "nt" else f'cd "{path}" && claude\n'
             subprocess.run(
-                ['tmux', 'send-keys', '-t', session_name, claude_command],
+                [TmuxManager.command, 'send-keys', '-t', session_name, claude_command],
                 capture_output=True,
                 timeout=5
             )
@@ -936,8 +949,13 @@ async def debug_info():
         "tmux_tmpdir": os.environ.get("TMUX_TMPDIR", "(not set)"),
         "home": os.path.expanduser("~"),
         "tmux_dir_exists": os.path.isdir(os.path.join(os.path.expanduser("~"), ".tmux")),
-        "uid": os.getuid(),
+        "platform": platform.platform(),
+        "multiplexer": TmuxManager.command,
+        "uid": os.getuid() if hasattr(os, "getuid") else None,
     }
+    if os.name == "nt":
+        info["discovered_sessions"] = tmux_manager.list_sessions()
+        return info
     # 枚举两边的 socket 目录
     uid = os.getuid()
     tmux_socket_dir = os.path.join(os.path.expanduser("~"), ".tmux", f"tmux-{uid}")
