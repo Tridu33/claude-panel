@@ -1,0 +1,6 @@
+@echo off
+cd /d "%~dp0"
+echo Starting backend ...
+start "Claude-Panel-Backend-Test" /MIN ".venv\Scripts\python.exe" main.py
+echo Backend starting on :10016 ...
+exit

@@ -4,6 +4,7 @@ title Claude Panel - Hard Reset
 
 setlocal
 cd /d "%~dp0"
+set "ROOT_DIR=%~dp0"
 
 echo ===========================================
 echo  Claude Panel - Hard Reset 10016 backend
@@ -30,12 +31,28 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":10016 "') do (
 )
 timeout /t 2 /nobreak > nul
 
-echo [4/4] Starting backend WITHOUT reload (avoid reload-stuck) and frontend ...
-REM Start backend with reload=False to avoid the reload-stuck issue we just hit
-start "Claude-Panel-Backend" /B /MIN cmd /c ".venv\Scripts\python -c ""import uvicorn; uvicorn.run('main:app', host='0.0.0.0', port=10016, reload=False)"" > backend.log 2>&1"
-start "Claude-Panel-Frontend" /B /MIN cmd /c "npx vite --host 0.0.0.0 --port 10014 > frontend.log 2>&1"
+echo [4/4] Starting backend and frontend ...
+echo cd /d "%ROOT_DIR%" > "%ROOT_DIR%_run_backend.bat"
+echo ".venv\Scripts\python.exe" main.py >> "%ROOT_DIR%_run_backend.bat"
+start "Claude-Panel-Backend" /MIN "%ROOT_DIR%_run_backend.bat"
+
+echo cd /d "%ROOT_DIR%frontend" > "%ROOT_DIR%_run_frontend.bat"
+echo npx.cmd vite --host 0.0.0.0 --port 10014 >> "%ROOT_DIR%_run_frontend.bat"
+start "Claude-Panel-Frontend" /MIN "%ROOT_DIR%_run_frontend.bat"
+
+timeout /t 8 /nobreak > nul
+
 echo.
-echo Started. Wait ~5 seconds, then run:
-echo   curl http://localhost:10016/api/tmux/sessions
+echo === Service Status ===
+set "BACKEND_OK="
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":10016 "') do set "BACKEND_OK=1"
+if defined BACKEND_OK (echo [OK] Backend :10016 - running) else (echo [WARN] Backend :10016 not detected)
+
+set "FRONTEND_OK="
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":10014 "') do set "FRONTEND_OK=1"
+if defined FRONTEND_OK (echo [OK] Frontend :10014 - running) else (echo [WARN] Frontend :10014 not detected)
+
+echo.
+echo Started. Visit: http://localhost:10014
 echo.
 endlocal

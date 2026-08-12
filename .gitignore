@@ -158,6 +158,10 @@ pids
 .env.local
 .env.*.local
 
+# 启动生成的临时批处理文件
+_run_backend.bat
+_run_frontend.bat
+
 # 不忽略示例文件
 !.env.example
 

@@ -66,7 +66,9 @@ export default {
           this.error = res.error || '登录失败'
         }
       } catch (e) {
-        this.error = '网络错误,请重试'
+        this.error = e.message && e.message.includes('后端')
+          ? e.message + ' — 请确认 start.bat 已完整启动两个服务'
+          : '网络错误,请重试'
       } finally {
         this.loading = false
       }

@@ -33,6 +33,16 @@ export async function checkAuth() {
   return false
 }
 
+// 从响应中安全提取 JSON，处理后端不可用等异常
+async function tryParseJson(resp) {
+  const ct = resp.headers.get('content-type') || ''
+  if (!ct.includes('application/json')) {
+    const text = await resp.text().catch(() => '')
+    throw new Error(text ? '后端服务异常(非JSON响应)' : '后端未响应')
+  }
+  return resp.json()
+}
+
 export async function login(account, password) {
   const r = await fetch('/api/auth/login', {
     method: 'POST',
@@ -40,7 +50,7 @@ export async function login(account, password) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ account, password }),
   })
-  const j = await r.json()
+  const j = await tryParseJson(r)
   if (j.ok) {
     setToken(j.token || '')
     _authed = true
